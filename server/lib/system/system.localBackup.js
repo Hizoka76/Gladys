@@ -80,7 +80,7 @@ async function createLocalBackup() {
     let duckDbIncluded = false;
     try {
       logger.info(`Local backup: Exporting DuckDB to ${duckDbBackupFolderPath}`);
-      const backupInstance = db.duckDbCreateBackupInstance();
+      const backupInstance = await db.duckDbCreateBackupInstance();
       try {
         await backupInstance.allAsync(`EXPORT DATABASE '${duckDbBackupFolderPath}' (FORMAT PARQUET, COMPRESSION GZIP)`);
         duckDbIncluded = true;

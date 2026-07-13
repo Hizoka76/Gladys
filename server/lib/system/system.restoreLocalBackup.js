@@ -1,6 +1,6 @@
 const fse = require('fs-extra');
 const sqlite3Mod = require('sqlite3');
-const duckdb = require('duckdb');
+const { DuckDBInstance } = require('@duckdb/node-api');
 const path = require('path');
 const { promisify } = require('util');
 
@@ -114,24 +114,22 @@ async function restoreLocalBackup(archiveFilePath) {
         await fse.writeFile(schemaFilePath, schema);
       }
 
-      // Close current DuckDB connection
-      await new Promise((resolve) => {
-        db.duckDb.close(() => resolve());
-      });
+      // Close current DuckDB instance to release the file handle
+      if (db.duckDb) {
+        db.duckDb.closeSync();
+      }
 
       // Remove current DuckDB files so we start fresh
       const duckDbFilePath = storagePath.replace('.db', '.duckdb');
       await fse.remove(duckDbFilePath);
       await fse.remove(`${duckDbFilePath}.wal`);
 
-      const newDuckDb = new duckdb.Database(duckDbFilePath);
-      const conn = newDuckDb.connect();
-      const allAsync = promisify(conn.all).bind(conn);
-      await allAsync(`IMPORT DATABASE '${duckDbBackupFolderPath}'`);
+      const newDuckDbInstance = await DuckDBInstance.create(duckDbFilePath);
+      const newDuckDbConnection = await newDuckDbInstance.connect();
+      await newDuckDbConnection.run(`IMPORT DATABASE '${duckDbBackupFolderPath}'`);
       logger.info('Local restore: DuckDB restored');
-      await new Promise((resolve) => {
-        newDuckDb.close(() => resolve());
-      });
+      newDuckDbConnection.disconnectSync();
+      newDuckDbInstance.closeSync();
     }
 
     logger.info('Local restore: complete — shutting down for process manager restart');
