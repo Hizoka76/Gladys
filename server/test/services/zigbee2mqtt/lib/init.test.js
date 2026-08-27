@@ -1,4 +1,4 @@
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 const { expect } = require('chai');
 
 const { assert, fake } = sinon;
@@ -190,6 +190,44 @@ describe('zigbee2mqtt init', () => {
     assert.calledOnce(zigbee2mqttManager.isEnabled);
     assert.notCalled(zigbee2mqttManager.connect);
     assert.calledThrice(zigbee2mqttManager.emitStatusEvent);
+  });
+
+  it('should not install containers, network coordinator not configured', async () => {
+    // PREPARE
+    const config = { z2mAdapterMode: 'network', mqttPassword: 'mqttPassword' };
+    zigbee2mqttManager.getConfiguration.resolves({ ...config });
+
+    // EXECUTE
+    await zigbee2mqttManager.init();
+    // ASSERT
+    expect(zigbee2mqttManager.networkAdapterConfigured).to.equal(false);
+    assert.notCalled(zigbee2mqttManager.checkForContainerUpdates);
+    assert.notCalled(zigbee2mqttManager.installMqttContainer);
+    assert.notCalled(zigbee2mqttManager.installZ2mContainer);
+    assert.notCalled(zigbee2mqttManager.connect);
+  });
+
+  it('should install containers, network coordinator is configured', async () => {
+    // PREPARE
+    const config = {
+      z2mAdapterMode: 'network',
+      z2mNetworkAdapterUrl: 'tcp://192.168.1.20:6638',
+      mqttPassword: 'mqttPassword',
+    };
+    zigbee2mqttManager.getConfiguration.resolves({ ...config });
+    zigbee2mqttManager.isEnabled.returns(false);
+
+    // EXECUTE
+    await zigbee2mqttManager.init();
+    // ASSERT
+    expect(zigbee2mqttManager.networkAdapterConfigured).to.equal(true);
+    expect(zigbee2mqttManager.usbConfigured).to.equal(false);
+    // The USB service is not requested in network mode
+    assert.notCalled(gladys.service.getService);
+    assert.calledOnce(zigbee2mqttManager.checkForContainerUpdates);
+    assert.calledOnce(zigbee2mqttManager.installMqttContainer);
+    assert.calledOnce(zigbee2mqttManager.installZ2mContainer);
+    assert.calledOnce(zigbee2mqttManager.isEnabled);
   });
 
   it('should save default mqtt params', async () => {

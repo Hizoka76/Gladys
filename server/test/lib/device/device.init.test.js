@@ -1,4 +1,6 @@
-const { assert, fake } = require('sinon');
+const sinon = require('sinon').createSandbox();
+
+const { assert, fake } = sinon;
 const Device = require('../../../lib/device');
 const StateManager = require('../../../lib/state');
 const Job = require('../../../lib/job');
@@ -21,8 +23,10 @@ describe('Device.init', () => {
     const job = new Job(event);
     const device = new Device(event, {}, stateManager, service, {}, {}, job, brain);
     device.migrateFromSQLiteToDuckDb = fake.returns(null);
+    device.purgeOrphanedDuckDbStates = fake.returns(null);
 
     await device.init();
     assert.called(device.migrateFromSQLiteToDuckDb);
+    assert.called(device.purgeOrphanedDuckDbStates);
   });
 });

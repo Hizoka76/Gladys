@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 
 const { assert, fake } = sinon;
 
@@ -65,6 +65,7 @@ describe('zigbee2mqtt disconnect', () => {
         mqttRunning: false,
         networkModeValid: true,
         usbConfigured: false,
+        networkAdapterConfigured: false,
         z2mEnabled: false,
         zigbee2mqttConnected: false,
         zigbee2mqttExist: false,
@@ -93,6 +94,7 @@ describe('zigbee2mqtt disconnect', () => {
         mqttRunning: false,
         networkModeValid: true,
         usbConfigured: false,
+        networkAdapterConfigured: false,
         z2mEnabled: false,
         zigbee2mqttConnected: false,
         zigbee2mqttExist: false,
@@ -127,6 +129,7 @@ describe('zigbee2mqtt disconnect', () => {
         mqttRunning: false,
         networkModeValid: true,
         usbConfigured: false,
+        networkAdapterConfigured: false,
         z2mEnabled: false,
         zigbee2mqttConnected: false,
         zigbee2mqttExist: false,

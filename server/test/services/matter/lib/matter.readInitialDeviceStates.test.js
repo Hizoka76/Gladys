@@ -1,5 +1,7 @@
 const { expect } = require('chai');
-const { assert, fake } = require('sinon');
+const sinon = require('sinon').createSandbox();
+
+const { assert, fake } = sinon;
 
 const {
   OnOff,
@@ -17,6 +19,7 @@ const {
   TotalVolatileOrganicCompoundsConcentrationMeasurement,
   NitrogenDioxideConcentrationMeasurement,
   FormaldehydeConcentrationMeasurement,
+  CarbonDioxideConcentrationMeasurement,
   ElectricalPowerMeasurement,
   ElectricalEnergyMeasurement,
   HepaFilterMonitoring,
@@ -25,11 +28,12 @@ const {
   RvcRunMode,
   RvcCleanMode,
   PowerSource,
+  DoorLock,
   // eslint-disable-next-line import/no-unresolved
 } = require('@matter/main/clusters');
 
 const MatterHandler = require('../../../../services/matter/lib');
-const { EVENTS, STATE, FAN_MODE } = require('../../../../utils/constants');
+const { EVENTS, STATE, FAN_MODE, AC_MODE, LOCK } = require('../../../../utils/constants');
 
 describe('Matter.readInitialDeviceStates', () => {
   let matterHandler;
@@ -115,10 +119,15 @@ describe('Matter.readInitialDeviceStates', () => {
       [FormaldehydeConcentrationMeasurement.Complete.id]: {
         getMeasuredValueAttribute: fake.resolves(5),
       },
+      [CarbonDioxideConcentrationMeasurement.Complete.id]: {
+        getMeasuredValueAttribute: fake.resolves(650),
+      },
       [Thermostat.Complete.id]: {
         supportedFeatures: { heating: true, cooling: true },
         getOccupiedHeatingSetpointAttribute: fake.resolves(2000),
         getOccupiedCoolingSetpointAttribute: fake.resolves(2400),
+        // Matter SystemMode Cool = 3
+        getSystemModeAttribute: fake.resolves(3),
       },
       [ElectricalPowerMeasurement.Complete.id]: {
         getActivePowerAttribute: fake.resolves(5000),
@@ -192,6 +201,10 @@ describe('Matter.readInitialDeviceStates', () => {
       state: 128,
     });
     assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:${nodeId}:${devicePath}:${CarbonDioxideConcentrationMeasurement.Complete.id}`,
+      state: 650,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
       device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalPowerMeasurement.Complete.id}:power`,
       state: 5,
     });
@@ -228,10 +241,84 @@ describe('Matter.readInitialDeviceStates', () => {
       state: 6,
     });
     assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:${nodeId}:${devicePath}:${Thermostat.Complete.id}:mode`,
+      state: AC_MODE.COOLING,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
       device_feature_external_id: `matter:${nodeId}:${devicePath}:${PowerSource.Complete.id}:battery`,
       state: 50,
     });
     expect(gladys.event.emit.callCount).to.be.greaterThan(20);
+  });
+
+  it('should skip thermostat system mode when it has no Gladys equivalent', async () => {
+    const thermostat = {
+      supportedFeatures: { cooling: true },
+      getOccupiedCoolingSetpointAttribute: fake.resolves(undefined),
+      // Matter SystemMode Off = 0
+      getSystemModeAttribute: fake.resolves(0),
+    };
+    const device = {
+      getClusterClientById: (id) => (id === Thermostat.Complete.id ? thermostat : null),
+    };
+
+    await matterHandler.readInitialDeviceStates(1234n, '1', device);
+
+    assert.notCalled(gladys.event.emit);
+  });
+
+  it('should skip thermostat system mode when attribute read fails', async () => {
+    const thermostat = {
+      supportedFeatures: { cooling: true },
+      getOccupiedCoolingSetpointAttribute: fake.resolves(undefined),
+      getSystemModeAttribute: fake.rejects(new Error('read failed')),
+    };
+    const device = {
+      getClusterClientById: (id) => (id === Thermostat.Complete.id ? thermostat : null),
+    };
+
+    await matterHandler.readInitialDeviceStates(1234n, '1', device);
+
+    assert.notCalled(gladys.event.emit);
+  });
+
+  it('should read initial electrical measurements delivered as BigInt', async () => {
+    const nodeId = 1234n;
+    const devicePath = '1';
+    const clusterClients = {
+      [ElectricalPowerMeasurement.Complete.id]: {
+        getActivePowerAttribute: fake.resolves(5000n),
+        getVoltageAttribute: fake.resolves(230000n),
+        getActiveCurrentAttribute: fake.resolves(1000n),
+      },
+      [ElectricalEnergyMeasurement.Complete.id]: {
+        // 4500000000 mWh = 4500 kWh, above INT32_MAX so matter.js delivers a BigInt
+        getCumulativeEnergyImportedAttribute: fake.resolves({ energy: 4500000000n }),
+      },
+    };
+
+    const device = {
+      getClusterClientById: (id) => clusterClients[id] || null,
+    };
+
+    await matterHandler.readInitialDeviceStates(nodeId, devicePath, device);
+
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalPowerMeasurement.Complete.id}:power`,
+      state: 5,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalPowerMeasurement.Complete.id}:voltage`,
+      state: 230,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalPowerMeasurement.Complete.id}:current`,
+      state: 1,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalEnergyMeasurement.Complete.id}:energy`,
+      state: 4500,
+    });
   });
 
   it('should skip null electrical measurements and undefined vacuum modes', async () => {
@@ -573,6 +660,55 @@ describe('Matter.readInitialDeviceStates', () => {
       device_feature_external_id: `matter:1234:1:${OccupancySensing.Complete.id}`,
       state: STATE.OFF,
     });
+  });
+
+  it('should read the initial DoorLock state', async () => {
+    const doorLock = {
+      getLockStateAttribute: fake.resolves(DoorLock.LockState.Locked),
+    };
+    const device = {
+      getClusterClientById: (id) => (id === DoorLock.Complete.id ? doorLock : null),
+    };
+
+    await matterHandler.readInitialDeviceStates(1234n, '1', device);
+
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:1234:1:${DoorLock.Complete.id}:state`,
+      state: LOCK.STATE.LOCKED,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:1234:1:${DoorLock.Complete.id}:lock`,
+      state: LOCK.ACTION.LOCK,
+    });
+  });
+
+  it('should only emit the detailed DoorLock state when the lock is not fully locked', async () => {
+    const doorLock = {
+      getLockStateAttribute: fake.resolves(DoorLock.LockState.NotFullyLocked),
+    };
+    const device = {
+      getClusterClientById: (id) => (id === DoorLock.Complete.id ? doorLock : null),
+    };
+
+    await matterHandler.readInitialDeviceStates(1234n, '1', device);
+
+    assert.calledOnceWithExactly(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:1234:1:${DoorLock.Complete.id}:state`,
+      state: LOCK.STATE.ACTIVITY,
+    });
+  });
+
+  it('should skip the DoorLock state when the attribute is not readable', async () => {
+    const doorLock = {
+      getLockStateAttribute: fake.rejects(new Error('read failed')),
+    };
+    const device = {
+      getClusterClientById: (id) => (id === DoorLock.Complete.id ? doorLock : null),
+    };
+
+    await matterHandler.readInitialDeviceStates(1234n, '1', device);
+
+    assert.notCalled(gladys.event.emit);
   });
 
   it('should skip occupancy when attribute read returns null', async () => {

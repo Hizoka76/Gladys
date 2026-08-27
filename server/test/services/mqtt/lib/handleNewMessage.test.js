@@ -1,4 +1,4 @@
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 
 const { assert, fake } = sinon;
 const { EVENTS, WEBSOCKET_MESSAGE_TYPES } = require('../../../../utils/constants');
@@ -105,6 +105,16 @@ describe('Mqtt handle message', () => {
     mqttHandler.handleNewMessage('gladys/master/random-topic', '{}');
 
     assert.notCalled(gladys.event.emit);
+  });
+  it('should forward messages to a bind with several "+" wildcards', () => {
+    const callback = fake.returns(null);
+    mqttHandler.subscribe('+/+/BTtoMQTT/A4C138800021', callback);
+
+    mqttHandler.handleNewMessage('blegateway/office/BTtoMQTT/A4C138800021', '{"tempc": 21.5}');
+    assert.calledWith(callback, 'blegateway/office/BTtoMQTT/A4C138800021', '{"tempc": 21.5}');
+
+    mqttHandler.handleNewMessage('blegateway/office/BTtoMQTT/FFFFFFFFFFFF', '{"tempc": 21.5}');
+    assert.calledOnce(callback);
   });
   it('handle device with custom topic and debug mode', () => {
     mqttHandler.debugMode = true;
