@@ -38,12 +38,67 @@ describe('normalizeSupportedOptions', () => {
     ).to.throw(BadParameters, /duplicate values/);
   });
 
+  it('should accept string values for dynamic selects', () => {
+    const options = normalizeSupportedOptions(
+      [
+        { value: 'netflix', label: 'Netflix' },
+        { value: 'com.disney.disneyplus-prod', label: 'Disney+' },
+      ],
+      { allowStringValues: true },
+    );
+
+    expect(options).to.deep.equal([
+      { value: 'netflix', label: 'Netflix', sort_order: 0 },
+      { value: 'com.disney.disneyplus-prod', label: 'Disney+', sort_order: 1 },
+    ]);
+  });
+
+  it('should reject string values when they are not allowed (enum-like features)', () => {
+    expect(() => normalizeSupportedOptions([{ value: 'netflix', label: 'Netflix' }])).to.throw(BadParameters);
+  });
+
+  it('should keep a numeric-looking string value as a string', () => {
+    expect(normalizeSupportedOptions([{ value: '5', label: 'Five' }], { allowStringValues: true })).to.deep.equal([
+      { value: '5', label: 'Five', sort_order: 0 },
+    ]);
+  });
+
+  it('should strip the internal value_string column from round-tripped options', () => {
+    expect(
+      normalizeSupportedOptions([{ value: 'netflix', value_string: 'netflix', label: 'Netflix' }], {
+        allowStringValues: true,
+      }),
+    ).to.deep.equal([{ value: 'netflix', label: 'Netflix', sort_order: 0 }]);
+  });
+
+  it('should reject an empty string value', () => {
+    expect(() => normalizeSupportedOptions([{ value: '', label: 'On' }], { allowStringValues: true })).to.throw(
+      BadParameters,
+    );
+    expect(() => normalizeSupportedOptions([{ value: '   ', label: 'On' }], { allowStringValues: true })).to.throw(
+      BadParameters,
+    );
+  });
+
   it('should reject invalid types', () => {
-    expect(() => normalizeSupportedOptions([{ value: '1', label: 'On' }])).to.throw(BadParameters);
+    expect(() => normalizeSupportedOptions([{ value: true, label: 'On' }])).to.throw(BadParameters);
+    expect(() => normalizeSupportedOptions([{ value: {}, label: 'On' }])).to.throw(BadParameters);
   });
 
   it('should reject decimal values', () => {
     expect(() => normalizeSupportedOptions([{ value: 1.5, label: 'On' }])).to.throw(BadParameters);
+  });
+
+  it('should reject duplicates between an integer and its string form', () => {
+    expect(() =>
+      normalizeSupportedOptions(
+        [
+          { value: 1, label: 'On' },
+          { value: '1', label: 'On again' },
+        ],
+        { allowStringValues: true },
+      ),
+    ).to.throw(BadParameters, /duplicate values/);
   });
 
   it('should accept an empty array', () => {
@@ -68,9 +123,27 @@ describe('normalizeSupportedOptions', () => {
     expect(() => normalizeSupportedOptions([{ id: 'not-a-uuid', value: 1, label: 'On' }])).to.throw(BadParameters);
   });
 
+  it('should strip database metadata fields so saved devices can be round-tripped', () => {
+    const options = normalizeSupportedOptions([
+      {
+        id: 'fc235c88-b10d-4706-8b59-fef92a7119b2',
+        value: 1,
+        label: 'On',
+        sort_order: 0,
+        device_feature_id: 'ca91dfdf-55b2-4cf8-a58b-99c0fbf6f5e4',
+        created_at: '2026-07-20T10:00:00.000Z',
+        updated_at: '2026-07-20T10:00:00.000Z',
+      },
+    ]);
+
+    expect(options).to.deep.equal([
+      { id: 'fc235c88-b10d-4706-8b59-fef92a7119b2', value: 1, label: 'On', sort_order: 0 },
+    ]);
+  });
+
   it('should aggregate multiple validation errors', () => {
     try {
-      normalizeSupportedOptions([{ value: 'bad', label: '' }]);
+      normalizeSupportedOptions([{ value: true, label: '' }]);
       expect.fail('should have thrown');
     } catch (error) {
       expect(error).to.be.instanceOf(BadParameters);

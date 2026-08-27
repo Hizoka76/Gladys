@@ -1,74 +1,144 @@
 import { Component } from 'preact';
-import { Text, Localizer } from 'preact-i18n';
-import { useRef } from 'preact/hooks';
-import { useDrag, useDrop } from 'react-dnd';
+import { Localizer, Text } from 'preact-i18n';
 import cx from 'classnames';
 
 import ActionCard from './ActionCard';
-import style from './style.css';
-import withIntlAsProp from '../../../utils/withIntlAsProp';
-import { convertPathToText } from '../../scene/edit-scene/sceneUtils';
-
-const ACTION_GROUP_TYPE_LEVEL = 'ACTION_GROUP_TYPE_LEVEL';
-
 import EmptyDropZone from './EmptyDropZone';
+import { startStepDrag, moveStepWithKeyboard } from './stepDrag';
+import style from './style.css';
 
-const ActionGroupWithDragAndDrop = ({ children, ...props }) => {
-  const pathLevel = props.path.split('.').length;
+const renderActionCard = (props, action, index) => (
+  <ActionCard
+    moveCard={props.moveCard}
+    moveCardGroup={props.moveCardGroup}
+    sceneParamsData={props.sceneParamsData}
+    action={action}
+    path={`${props.path}.${index}`}
+    updateActionProperty={props.updateActionProperty}
+    highLightedActions={props.highLightedActions}
+    deleteActionGroup={props.deleteActionGroup}
+    addAction={props.addAction}
+    deleteAction={props.deleteAction}
+    actionsGroupsBefore={props.actionsGroupsBefore}
+    variables={props.variables}
+    triggersVariables={props.triggersVariables}
+    setVariables={props.setVariables}
+    scene={props.scene}
+    allActions={props.allActions}
+    columnIndex={props.index}
+    index={index}
+    isSequentialStep={props.actions.length === 1}
+    showParallelLink={props.actions.length === 1}
+    editComment={props.updateComment !== undefined ? props.onStartEditingComment : undefined}
+  />
+);
+
+// The comment of a step: free text the user writes to explain what the step
+// does. It is displayed above the step, and edited in place in a textarea.
+const renderComment = props => {
+  if (props.updateComment === undefined) {
+    return null;
+  }
+  if (props.editingComment) {
+    return (
+      <Localizer>
+        <textarea
+          class="form-control mb-3"
+          rows="2"
+          value={props.localComment}
+          placeholder={<Text id="editScene.actionsCommentPlaceholder" />}
+          onInput={props.onCommentInput}
+          onBlur={props.onCommentBlur}
+          autoFocus
+        />
+      </Localizer>
+    );
+  }
+  if (!props.comment) {
+    return null;
+  }
+  return <div class="alert alert-secondary mb-3">{props.comment}</div>;
+};
+
+const ActionGroupContent = ({ children, ...props }) => {
   const { path } = props;
-  const ref = useRef(null);
-  const [{ isDragging }, drag, preview] = useDrag(() => ({
-    // You can only drag & drop an action group of the same level
-    type: `${ACTION_GROUP_TYPE_LEVEL}_${pathLevel}`,
-    item: () => {
-      return { path };
-    },
-    collect: monitor => ({
-      isDragging: !!monitor.isDragging()
-    })
-  }));
-  const [{ isActive }, drop] = useDrop({
-    // You can only drag & drop an action group of the same level
-    accept: `${ACTION_GROUP_TYPE_LEVEL}_${pathLevel}`,
-    collect: monitor => ({
-      isActive: monitor.canDrop() && monitor.isOver()
-    }),
-    drop(item) {
-      if (!ref.current) {
-        return;
-      }
-      props.moveCardGroup(item.path, path);
-    }
-  });
-  preview(drop(ref));
+  const groupIndex = parseInt(path.split('.').pop(), 10);
+
+  // An empty group is an insertion point: a "add a step" button which also
+  // adopts a parallel card dropped on it (the card becomes its own step)
+  if (props.actions.length === 0) {
+    return (
+      <div class="col">
+        <EmptyDropZone path={props.path} onAddStep={props.addActionToColumn} />
+      </div>
+    );
+  }
+
+  // A group with a single action renders as a simple full-width step,
+  // without any group chrome around it
+  if (props.actions.length === 1) {
+    return (
+      <div class="col" data-step-slot data-group-index={groupIndex}>
+        {renderComment(props)}
+        <div class="row">{renderActionCard(props, props.actions[0], 0)}</div>
+      </div>
+    );
+  }
+
+  const onHandlePointerDown = event => startStepDrag(event, { groupPath: path, moveCardGroup: props.moveCardGroup });
+  const onHandleKeyDown = event => moveStepWithKeyboard(event, { groupPath: path, moveCardGroup: props.moveCardGroup });
+
+  // A group with several actions renders as an explicit "at the same time" block
   return (
-    <div class="col">
-      <div
-        ref={ref}
-        class={cx('card cursor-pointer user-select-none', {
-          [style.dropZoneActive]: isActive,
-          [style.dropZoneDragging]: isDragging
-        })}
-      >
-        <div class="card-status bg-green" />
-        <div ref={drag} class="card-header">
-          <h4 class="text-center card-title ">{convertPathToText(props.path, props.intl.dictionary)}</h4>
+    <div class="col" data-step-slot data-group-index={groupIndex}>
+      {renderComment(props)}
+      <div class={cx('card user-select-none', style.stepCard, style.parallelBlock)}>
+        <div class={cx('card-header', style.stepCardHeader)}>
+          <span class={cx(style.stepIconTile, style.typePickerIconBlue)}>
+            <i class="fe fe-git-merge" />
+          </span>
+          {/* a step heading, not a widget label: the theme shrinks .card-title
+              to a 12px uppercase micro-label, which is the dashboard grammar */}
+          <span class={style.stepLabel} data-step-label>
+            <Text id="editScene.parallelBlockTitle" />
+          </span>
 
           <div class="card-options">
-            <div class="mr-4 my-auto">
-              <i class="fe fe-move" />
-            </div>
-
+            <Localizer>
+              <button
+                type="button"
+                class={cx('mr-4', style.cardOptionButton, style.dragHandle)}
+                data-cy={`drag-step-${path}`}
+                onPointerDown={onHandlePointerDown}
+                onKeyDown={onHandleKeyDown}
+                aria-label={<Text id="editScene.moveHandleLabel" />}
+              >
+                <i class="fe fe-move" />
+              </button>
+            </Localizer>
             {props.updateComment !== undefined && (
-              <button type="button" class="btn btn-outline-info" onClick={props.onStartEditingComment}>
-                <i class="fe fe-info" tooltip={<Text id="editScene.actionsCommentTooltip" />} />
-              </button>
+              <Localizer>
+                <button
+                  type="button"
+                  onClick={props.onStartEditingComment}
+                  class={cx('mr-4', style.cardOptionButton)}
+                  aria-label={<Text id="editScene.actionsCommentButton" />}
+                >
+                  <i class="fe fe-message-square" />
+                </button>
+              </Localizer>
             )}
-
-            {!props.firstActionGroup && !props.lastActionGroup && (
-              <button onClick={props.deleteThisActionGroup} class="btn btn-outline-danger ml-4">
-                <i class="fe fe-trash-2" />
-              </button>
+            {!props.lastActionGroup && (
+              <Localizer>
+                <button
+                  type="button"
+                  onClick={props.deleteThisActionGroup}
+                  class={cx('card-options-remove', style.cardOptionButton)}
+                  aria-label={<Text id="editScene.deleteStepButton" />}
+                >
+                  <i class="fe fe-x" />
+                </button>
+              </Localizer>
             )}
           </div>
         </div>
@@ -80,58 +150,18 @@ const ActionGroupWithDragAndDrop = ({ children, ...props }) => {
           >
             <div class="loader" />
             <div class="dimmer-content">
-              {props.editingComment ? (
-                <Localizer>
-                  <textarea
-                    class="form-control mb-3 mr-4"
-                    rows="2"
-                    value={props.localComment}
-                    placeholder={<Text id="editScene.actionsCommentPlaceholder" />}
-                    onInput={props.onCommentInput}
-                    onBlur={props.onCommentBlur}
-                    autoFocus
-                  />
-                </Localizer>
-              ) : (
-                props.comment && <div class="alert alert-secondary mb-3 cursor-pointer">{props.comment}</div>
-              )}
-              {props.actions && props.actions.length > 0 && (
-                <div class="alert alert-info">
-                  <Text id="editScene.actionsDescription" />
-                </div>
-              )}
-              <div class="row">
-                {props.actions.map((action, index) => (
-                  <ActionCard
-                    moveCard={props.moveCard}
-                    moveCardGroup={props.moveCardGroup}
-                    sceneParamsData={props.sceneParamsData}
-                    action={action}
-                    path={`${props.path}.${index}`}
-                    updateActionProperty={props.updateActionProperty}
-                    highLightedActions={props.highLightedActions}
-                    deleteActionGroup={props.deleteActionGroup}
-                    addAction={props.addAction}
-                    deleteAction={props.deleteAction}
-                    actionsGroupsBefore={props.actionsGroupsBefore}
-                    variables={props.variables}
-                    triggersVariables={props.triggersVariables}
-                    setVariables={props.setVariables}
-                    scene={props.scene}
-                    allActions={props.allActions}
-                  />
-                ))}
-                {props.actions.length === 0 && (
-                  <div class="col">
-                    <EmptyDropZone moveCard={props.moveCard} path={props.path} />
-                  </div>
-                )}
+              <div
+                class="row"
+                data-parallel-drop
+                data-group-path={path}
+                data-drop-active-class={style.parallelDropActive}
+              >
+                {props.actions.map((action, index) => renderActionCard(props, action, index))}
               </div>
 
-              {/* Add Action Button */}
-              <div class="text-center mt-4">
-                <button onClick={props.addActionToColumn} class="btn btn-sm btn-outline-primary">
-                  <i class="fe fe-plus" /> <Text id="editScene.addActionButton">Add action</Text>
+              <div class="text-center">
+                <button onClick={props.addActionToColumn} class="btn btn-sm btn-outline-secondary">
+                  <i class="fe fe-plus" /> <Text id="editScene.addParallelActionButton" />
                 </button>
               </div>
             </div>
@@ -177,7 +207,7 @@ class ActionGroup extends Component {
 
   render(props, { editingComment, localComment }) {
     return (
-      <ActionGroupWithDragAndDrop
+      <ActionGroupContent
         {...props}
         deleteActionGroup={props.deleteActionGroup}
         addActionToColumn={this.addActionToColumn}
@@ -192,4 +222,4 @@ class ActionGroup extends Component {
   }
 }
 
-export default withIntlAsProp(ActionGroup);
+export default ActionGroup;

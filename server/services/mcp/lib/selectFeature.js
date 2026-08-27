@@ -15,6 +15,9 @@ const sensorFeatures = [
   DEVICE_FEATURE_CATEGORIES.OPENING_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PM10_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PM25_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.NO2_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.O3_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.SO2_SENSOR,
   DEVICE_FEATURE_CATEGORIES.FORMALDEHYD_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PRECIPITATION_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PRESENCE_SENSOR,
@@ -44,6 +47,16 @@ const isSwitchableFeature = (deviceFeature) => {
   );
 };
 
+const lightControlFeatures = [
+  `${DEVICE_FEATURE_CATEGORIES.LIGHT}:${DEVICE_FEATURE_TYPES.LIGHT.BRIGHTNESS}`,
+  `${DEVICE_FEATURE_CATEGORIES.LIGHT}:${DEVICE_FEATURE_TYPES.LIGHT.COLOR}`,
+  `${DEVICE_FEATURE_CATEGORIES.LIGHT}:${DEVICE_FEATURE_TYPES.LIGHT.TEMPERATURE}`,
+];
+
+const isLightControlFeature = (deviceFeature) => {
+  return lightControlFeatures.includes(`${deviceFeature.category}:${deviceFeature.type}`);
+};
+
 const shutterFeatures = [
   `${DEVICE_FEATURE_CATEGORIES.SHUTTER}:${DEVICE_FEATURE_TYPES.SHUTTER.STATE}`,
   `${DEVICE_FEATURE_CATEGORIES.SHUTTER}:${DEVICE_FEATURE_TYPES.SHUTTER.POSITION}`,
@@ -64,6 +77,9 @@ const historyFeatures = [
   DEVICE_FEATURE_CATEGORIES.MOTION_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PM10_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PM25_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.NO2_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.O3_SENSOR,
+  DEVICE_FEATURE_CATEGORIES.SO2_SENSOR,
   DEVICE_FEATURE_CATEGORIES.FORMALDEHYD_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PRECIPITATION_SENSOR,
   DEVICE_FEATURE_CATEGORIES.PRESENCE_SENSOR,
@@ -91,6 +107,13 @@ const isHistoryFeature = (deviceFeature) => {
   );
 };
 
+// Battery levels are deliberately kept out of `sensorFeatures`: they would then be
+// part of every `device.get-state` answer and of the home schema, where they say
+// nothing about what the user asked. They get their own tool instead.
+const isBatteryFeature = (deviceFeature) => {
+  return deviceFeature.category === DEVICE_FEATURE_CATEGORIES.BATTERY;
+};
+
 const isWritableSensorFeature = (deviceFeature, device) => {
   if (deviceFeature.read_only !== true) {
     return false;
@@ -106,7 +129,9 @@ const isWritableSensorFeature = (deviceFeature, device) => {
 module.exports = {
   isSensorFeature,
   isSwitchableFeature,
+  isLightControlFeature,
   isShutterFeature,
   isHistoryFeature,
+  isBatteryFeature,
   isWritableSensorFeature,
 };

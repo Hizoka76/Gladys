@@ -1,7 +1,9 @@
 import { Component } from 'preact';
 import { connect } from 'unistore/preact';
 import { Text } from 'preact-i18n';
-import Select, { components } from 'react-select';
+import { components } from 'react-select';
+
+import Select from '../../../../components/form/Select';
 
 import {
   DEVICE_FEATURE_CATEGORIES,

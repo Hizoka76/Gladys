@@ -14,6 +14,12 @@ const names = {
     },
     reversedValue: true,
   },
+  garage_door_contact: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.OPENING_SENSOR,
+      type: DEVICE_FEATURE_TYPES.SENSOR.BINARY,
+    },
+  },
   eco_mode: {
     feature: {
       category: DEVICE_FEATURE_CATEGORIES.SWITCH,
@@ -56,6 +62,12 @@ const names = {
       type: DEVICE_FEATURE_TYPES.SENSOR.BINARY,
     },
   },
+  test: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.SIREN,
+      type: DEVICE_FEATURE_TYPES.SIREN.TEST_IN_PROGRESS,
+    },
+  },
   child_lock: {
     feature: {
       category: DEVICE_FEATURE_CATEGORIES.CHILD_LOCK,
@@ -76,6 +88,12 @@ const names = {
         category: DEVICE_FEATURE_CATEGORIES.SWITCH,
         type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
       },
+    },
+  },
+  trigger: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.SWITCH,
+      type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
     },
   },
   vibration: {
@@ -106,6 +124,49 @@ const names = {
     feature: {
       category: DEVICE_FEATURE_CATEGORIES.INPUT,
       type: DEVICE_FEATURE_TYPES.INPUT.BINARY,
+    },
+  },
+  // Outdoor sirens exposing their alarm as a switch, like the NEO NAS-AB06B2
+  // https://www.zigbee2mqtt.io/devices/NAS-AB06B2.html
+  alarm_switch: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.SIREN,
+      type: DEVICE_FEATURE_TYPES.SIREN.BINARY,
+    },
+  },
+  // Whether the device has been tampered with (read-only), next to the switch enabling
+  // the tamper detection itself (writable)
+  tamper_alarm: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.TAMPER,
+      type: DEVICE_FEATURE_TYPES.SENSOR.BINARY,
+    },
+  },
+  tamper_alarm_switch: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.SWITCH,
+      type: DEVICE_FEATURE_TYPES.SWITCH.BINARY,
+    },
+  },
+  // Battery of the device is currently being recharged (solar panel, USB…)
+  charging: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.BATTERY,
+      type: DEVICE_FEATURE_TYPES.BATTERY.CHARGING,
+    },
+  },
+  // SONOFF SWV water valve
+  // https://www.zigbee2mqtt.io/devices/SWV.html
+  auto_close_when_water_shortage: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.WATER_VALVE,
+      type: DEVICE_FEATURE_TYPES.WATER_VALVE.AUTO_CLOSE_WHEN_WATER_SHORTAGE,
+    },
+  },
+  valve_work_state: {
+    feature: {
+      category: DEVICE_FEATURE_CATEGORIES.WATER_VALVE,
+      type: DEVICE_FEATURE_TYPES.WATER_VALVE.VALVE_WORK_STATE,
     },
   },
 };

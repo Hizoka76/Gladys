@@ -1,7 +1,9 @@
 const { expect } = require('chai');
 const fse = require('fs-extra');
 const path = require('path');
-const { fake, assert: fakeAssert } = require('sinon');
+const sinon = require('sinon').createSandbox();
+
+const { fake, assert: fakeAssert } = sinon;
 const RtspCameraManager = require('../../../services/rtsp-camera/lib');
 
 const device = {
@@ -21,7 +23,7 @@ const device = {
 
 const gladys = {
   config: {
-    tempFolder: '/tmp/gladys',
+    tempFolder: process.env.TEMP_FOLDER || '/tmp/gladys',
   },
   device: {
     camera: {

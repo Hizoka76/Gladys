@@ -4,6 +4,7 @@ const fse = require('fs-extra');
 const asyncMiddleware = require('../middlewares/asyncMiddleware');
 const { EVENTS } = require('../../utils/constants');
 const logger = require('../../utils/logger');
+const { acknowledgeHostPowerCommand } = require('./system.controller.helpers');
 
 module.exports = function SystemController(gladys) {
   /**
@@ -82,6 +83,21 @@ module.exports = function SystemController(gladys) {
   }
 
   /**
+   * @api {post} /api/v1/system/reboot
+   * @apiName rebootHost
+   * @apiGroup System
+   */
+  async function rebootHost(req, res) {
+    // Surface an immediate failure (polkit refusal, helper error) but don't wait
+    // for the host to actually go down. A late failure is logged, not thrown.
+    await acknowledgeHostPowerCommand(gladys.system.rebootHost(), 'reboot host');
+    res.json({
+      success: true,
+      message: 'Host will reboot soon',
+    });
+  }
+
+  /**
    * @api {post} /api/v1/system/backup/local/restore
    * @apiName localBackupRestore
    * @apiGroup System
@@ -106,6 +122,20 @@ module.exports = function SystemController(gladys) {
     // Run restore asynchronously so the response is sent before shutdown
     gladys.system.restoreLocalBackup(archiveFilePath).catch((err) => {
       logger.error('Local restore failed', err);
+    });
+  }
+
+  /**
+   * @api {post} /api/v1/system/shutdown-host
+   * @apiName shutdownHost
+   * @apiGroup System
+   */
+  async function shutdownHost(req, res) {
+    // Same trade-off as rebootHost above.
+    await acknowledgeHostPowerCommand(gladys.system.shutdownHost(), 'shutdown host');
+    res.json({
+      success: true,
+      message: 'Host will shutdown soon',
     });
   }
 
@@ -144,6 +174,8 @@ module.exports = function SystemController(gladys) {
     getDiskSpace: asyncMiddleware(getDiskSpace),
     getContainers: asyncMiddleware(getContainers),
     shutdown: asyncMiddleware(shutdown),
+    rebootHost: asyncMiddleware(rebootHost),
+    shutdownHost: asyncMiddleware(shutdownHost),
     vacuum: asyncMiddleware(vacuum),
     localBackup: asyncMiddleware(localBackup),
     localBackupRestore: asyncMiddleware(localBackupRestore),
