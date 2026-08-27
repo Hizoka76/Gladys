@@ -66,6 +66,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Numéro de version de Gladys, lu comme le fait update_gladys.sh, pour
+      # taguer l'image avec la version upstream sur laquelle le fork est basé
+      - name: 🏷️ Version de Gladys
+        id: version
+        run: |
+          version=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
       - name: 🏷️ Métadonnées Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -73,6 +81,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/gladys
           tags: |
             type=raw,value=all-functions
+            type=raw,value=${{ steps.version.outputs.version }}
             type=sha,prefix=all-functions-,format=short
 
       - name: 🐳 Build & push
