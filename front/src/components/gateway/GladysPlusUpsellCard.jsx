@@ -90,17 +90,22 @@ const GladysPlusUpsellCard = ({
             )}
             {!isUpgrade && (
               <p class="text-muted small mb-3">
-                <i class="fe fe-gift mr-1" />
+                <i class="fe fe-award mr-1" />
                 <Text id="gladysPlusUpsell.freeTrialNotice" />
               </p>
             )}
             <div class="d-flex flex-wrap">
               {isUpgrade ? (
-                <a href={primaryHref} class="btn btn-success mb-2">
+                <a href={primaryHref} class={`btn btn-success mb-2 ${style.upsellCta}`}>
                   <Text id={primaryTextId} />
                 </a>
               ) : (
-                <a href={primaryHref} target="_blank" rel="noopener noreferrer" class="btn btn-success mb-2">
+                <a
+                  href={primaryHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class={`btn btn-success mb-2 ${style.upsellCta}`}
+                >
                   <Text id={primaryTextId} /> <i class="fe fe-external-link ml-1" />
                 </a>
               )}

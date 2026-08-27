@@ -85,6 +85,44 @@ module.exports = function DashboardController(gladys) {
     });
   }
 
+  /**
+   * @api {get} /api/v1/dashboard/photo/proxy getPhoto
+   * @apiName getPhoto
+   * @apiGroup Dashboard
+   * @apiParam {String} url External image URL to fetch through Gladys.
+   * @apiSuccessExample {text} Success-Response:
+   * image/jpeg;base64,/9j/4AAQSkZJRg...
+   */
+  async function getPhotoProxy(req, res) {
+    const image = await gladys.dashboard.getPhoto(req.query.url);
+    res.send(image);
+  }
+
+  /**
+   * @api {post} /api/v1/dashboard_asset/:dashboard_selector createAsset
+   * @apiName createAsset
+   * @apiGroup Dashboard
+   * @apiParam {String} content_type Image MIME type (image/png, image/jpeg, image/webp).
+   * @apiParam {String} data Base64-encoded image data.
+   * @apiSuccess {String} id Id of the created asset.
+   */
+  async function createAsset(req, res) {
+    const asset = await gladys.dashboard.createAsset(req.user.id, req.params.dashboard_selector, req.body);
+    res.status(201).json(asset);
+  }
+
+  /**
+   * @api {get} /api/v1/dashboard_asset/:dashboard_asset_id getAsset
+   * @apiName getAsset
+   * @apiGroup Dashboard
+   * @apiSuccessExample {String} Success-Example
+   * image/png;base64,iVBORw0KGgo...
+   */
+  async function getAsset(req, res) {
+    const image = await gladys.dashboard.getAsset(req.user.id, req.params.dashboard_asset_id);
+    res.send(image);
+  }
+
   return Object.freeze({
     create: asyncMiddleware(create),
     destroy: asyncMiddleware(destroy),
@@ -92,5 +130,8 @@ module.exports = function DashboardController(gladys) {
     getBySelector: asyncMiddleware(getBySelector),
     update: asyncMiddleware(update),
     updateOrder: asyncMiddleware(updateOrder),
+    getPhotoProxy: asyncMiddleware(getPhotoProxy),
+    createAsset: asyncMiddleware(createAsset),
+    getAsset: asyncMiddleware(getAsset),
   });
 };

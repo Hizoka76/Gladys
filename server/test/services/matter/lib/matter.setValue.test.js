@@ -1,18 +1,20 @@
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 const { assert: chaiAssert } = require('chai');
 
 const { fake, assert } = sinon;
 
 // eslint-disable-next-line import/no-unresolved
-const { FanControl } = require('@matter/main/clusters');
+const { FanControl, DoorLock } = require('@matter/main/clusters');
 
 const MatterHandler = require('../../../../services/matter/lib');
 const {
   DEVICE_FEATURE_CATEGORIES,
   DEVICE_FEATURE_TYPES,
   COVER_STATE,
+  AC_MODE,
   FAN_MODE,
   FAN_AIRFLOW_DIRECTION,
+  LOCK,
 } = require('../../../../utils/constants');
 
 describe('Matter.setValue', () => {
@@ -529,6 +531,97 @@ describe('Matter.setValue', () => {
 
     await matterHandler.setValue(gladysDevice, gladysFeature, value);
     assert.calledWith(clusterClient.setOccupiedCoolingSetpointAttribute, value * 100);
+  });
+  it('should control an air conditioning mode', async () => {
+    const gladysDevice = {
+      external_id: 'matter:12345:1',
+    };
+
+    const gladysFeature = {
+      category: DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING,
+      type: DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE,
+      external_id: 'matter:12345:1:513:mode',
+    };
+
+    const clusterClients = new Map();
+
+    const clusterClient = {
+      setSystemModeAttribute: fake.resolves(null),
+    };
+    clusterClients.set(513, clusterClient);
+
+    matterHandler.nodesMap.set(12345n, {
+      isConnected: true,
+      getDevices: fake.returns([
+        {
+          number: 1,
+          getClusterClientById: (id) => clusterClients.get(id),
+          getChildEndpoints: () => [],
+        },
+      ]),
+    });
+
+    await matterHandler.setValue(gladysDevice, gladysFeature, AC_MODE.HEATING);
+    // Matter SystemMode Heat = 4
+    assert.calledWith(clusterClient.setSystemModeAttribute, 4);
+  });
+  it('should return an error if the device does not support the Thermostat cluster (air conditioning mode)', async () => {
+    const gladysDevice = {
+      external_id: 'matter:12345:1',
+    };
+
+    const gladysFeature = {
+      category: DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING,
+      type: DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE,
+      external_id: 'matter:12345:1:513:mode',
+    };
+
+    matterHandler.nodesMap.set(12345n, {
+      isConnected: true,
+      getDevices: fake.returns([
+        {
+          number: 1,
+          getClusterClientById: () => null,
+          getChildEndpoints: () => [],
+        },
+      ]),
+    });
+
+    const promise = matterHandler.setValue(gladysDevice, gladysFeature, AC_MODE.COOLING);
+    await chaiAssert.isRejected(promise, 'Device does not support Thermostat cluster');
+  });
+  it('should return an error for an unsupported air conditioning mode', async () => {
+    const gladysDevice = {
+      external_id: 'matter:12345:1',
+    };
+
+    const gladysFeature = {
+      category: DEVICE_FEATURE_CATEGORIES.AIR_CONDITIONING,
+      type: DEVICE_FEATURE_TYPES.AIR_CONDITIONING.MODE,
+      external_id: 'matter:12345:1:513:mode',
+    };
+
+    const clusterClients = new Map();
+
+    const clusterClient = {
+      setSystemModeAttribute: fake.resolves(null),
+    };
+    clusterClients.set(513, clusterClient);
+
+    matterHandler.nodesMap.set(12345n, {
+      isConnected: true,
+      getDevices: fake.returns([
+        {
+          number: 1,
+          getClusterClientById: (id) => clusterClients.get(id),
+          getChildEndpoints: () => [],
+        },
+      ]),
+    });
+
+    const promise = matterHandler.setValue(gladysDevice, gladysFeature, 99);
+    await chaiAssert.isRejected(promise, 'Unsupported air conditioning mode: 99');
+    assert.notCalled(clusterClient.setSystemModeAttribute);
   });
   it('should return an error, no node found', async () => {
     const gladysDevice = {
@@ -1138,5 +1231,128 @@ describe('Matter.setValue', () => {
 
     const promise = matterHandler.setValue(gladysDevice, gladysFeature, value);
     await chaiAssert.isRejected(promise, 'Device does not support RvcCleanMode cluster');
+  });
+
+  const buildLockNode = (clusterClients) => ({
+    isConnected: true,
+    getDevices: fake.returns([
+      {
+        number: 1,
+        getClusterClientById: (id) => clusterClients.get(id),
+        getChildEndpoints: () => [],
+      },
+    ]),
+  });
+
+  const lockGladysDevice = { external_id: 'matter:12345:1' };
+  const lockGladysFeature = {
+    category: DEVICE_FEATURE_CATEGORIES.LOCK,
+    type: DEVICE_FEATURE_TYPES.LOCK.BINARY,
+  };
+
+  it('should lock a door lock', async () => {
+    const clusterClients = new Map();
+    const doorLock = {
+      lockDoor: fake.resolves(null),
+      unlockDoor: fake.resolves(null),
+    };
+    clusterClients.set(DoorLock.Complete.id, doorLock);
+    matterHandler.nodesMap.set(12345n, buildLockNode(clusterClients));
+
+    await matterHandler.setValue(lockGladysDevice, lockGladysFeature, LOCK.ACTION.LOCK);
+
+    assert.calledOnceWithExactly(doorLock.lockDoor, {});
+    assert.notCalled(doorLock.unlockDoor);
+  });
+
+  it('should unlock a door lock', async () => {
+    const clusterClients = new Map();
+    const doorLock = {
+      lockDoor: fake.resolves(null),
+      unlockDoor: fake.resolves(null),
+    };
+    clusterClients.set(DoorLock.Complete.id, doorLock);
+    matterHandler.nodesMap.set(12345n, buildLockNode(clusterClients));
+
+    await matterHandler.setValue(lockGladysDevice, lockGladysFeature, LOCK.ACTION.UNLOCK);
+
+    assert.calledOnceWithExactly(doorLock.unlockDoor, {});
+    assert.notCalled(doorLock.lockDoor);
+  });
+
+  it('should not send an OnOff command for a lock binary feature', async () => {
+    const clusterClients = new Map();
+    const onOff = {
+      on: fake.resolves(null),
+      off: fake.resolves(null),
+    };
+    const doorLock = {
+      lockDoor: fake.resolves(null),
+      unlockDoor: fake.resolves(null),
+    };
+    clusterClients.set(6, onOff);
+    clusterClients.set(DoorLock.Complete.id, doorLock);
+    matterHandler.nodesMap.set(12345n, buildLockNode(clusterClients));
+
+    await matterHandler.setValue(lockGladysDevice, lockGladysFeature, LOCK.ACTION.LOCK);
+
+    assert.notCalled(onOff.on);
+    assert.notCalled(onOff.off);
+    assert.calledOnce(doorLock.lockDoor);
+  });
+
+  it('should throw an error for an unsupported lock command value', async () => {
+    const clusterClients = new Map();
+    const doorLock = {
+      lockDoor: fake.resolves(null),
+      unlockDoor: fake.resolves(null),
+    };
+    clusterClients.set(DoorLock.Complete.id, doorLock);
+    matterHandler.nodesMap.set(12345n, buildLockNode(clusterClients));
+
+    const promise = matterHandler.setValue(lockGladysDevice, lockGladysFeature, 2);
+    await chaiAssert.isRejected(promise, 'Unsupported lock command value: 2');
+  });
+
+  it('should lock a door lock with a string command value', async () => {
+    const clusterClients = new Map();
+    const doorLock = {
+      lockDoor: fake.resolves(null),
+      unlockDoor: fake.resolves(null),
+    };
+    clusterClients.set(DoorLock.Complete.id, doorLock);
+    matterHandler.nodesMap.set(12345n, buildLockNode(clusterClients));
+
+    await matterHandler.setValue(lockGladysDevice, lockGladysFeature, '1');
+
+    assert.calledOnceWithExactly(doorLock.lockDoor, {});
+    assert.notCalled(doorLock.unlockDoor);
+  });
+
+  [null, '', false, 'unlock'].forEach((invalidValue) => {
+    it(`should throw an error and send no command for the lock command value ${JSON.stringify(
+      invalidValue,
+    )}`, async () => {
+      const clusterClients = new Map();
+      const doorLock = {
+        lockDoor: fake.resolves(null),
+        unlockDoor: fake.resolves(null),
+      };
+      clusterClients.set(DoorLock.Complete.id, doorLock);
+      matterHandler.nodesMap.set(12345n, buildLockNode(clusterClients));
+
+      const promise = matterHandler.setValue(lockGladysDevice, lockGladysFeature, invalidValue);
+      await chaiAssert.isRejected(promise, 'Unsupported lock command value');
+      assert.notCalled(doorLock.lockDoor);
+      assert.notCalled(doorLock.unlockDoor);
+    });
+  });
+
+  it('should throw an error when the DoorLock cluster is not available', async () => {
+    const clusterClients = new Map();
+    matterHandler.nodesMap.set(12345n, buildLockNode(clusterClients));
+
+    const promise = matterHandler.setValue(lockGladysDevice, lockGladysFeature, LOCK.ACTION.LOCK);
+    await chaiAssert.isRejected(promise, 'Device does not support DoorLock cluster');
   });
 });
