@@ -25,12 +25,12 @@ The **Gladys feature** column lists matching `category/type` pairs from `server/
 | `AudioOutput` | This cluster provides an interface for controlling the Output on a Video Player device such as a TV. | No | television/volume (easy) | Not explicitly handled in `server/services/matter`. |
 | `BasicInformation` | This cluster provides attributes and events for determining basic information about Nodes, which supports both Commissioning and operational determination of Node characteristics, such as Vendor ID, Product ID and serial number, which apply to the whole Node. | Yes | device metadata (vendor, product, serial) | Used to populate device vendor/product identity and onboarding params (via Matter node basic information). |
 | `Binding` | Defines bindings between local endpoints and remote targets so commands and reports can be routed automatically. | No | — | Not explicitly handled in `server/services/matter`. |
-| `BooleanState` | This cluster provides an interface to a boolean state. | Yes | switch/binary | Binary state, read-only. |
+| `BooleanState` | This cluster provides an interface to a boolean state. | Yes | leak-sensor/binary, opening-sensor/binary, rain-sensor/binary, switch/binary | Binary state, read-only. The Gladys category depends on the Matter device type of the endpoint, see [BooleanState device types](#booleanstate-device-types). |
 | `BooleanStateConfiguration` | This cluster is used to configure a boolean sensor, including optional state change alarm features and configuration of the sensitivity level associated with the sensor. | No | — | Not explicitly handled in `server/services/matter`. |
 | `BridgedDeviceBasicInformation` | This cluster provides attributes and events for determining basic information about Bridged Nodes. | Yes | device metadata (bridged endpoint) | Used to populate bridged endpoint metadata (vendorName/nodeLabel/productLabel/productName/uniqueId/serialNumber). |
 | `CameraAvSettingsUserLevelManagement` | This cluster provides an interface into controls associated with the operation of a camera that provides pan, tilt, and zoom functions, either mechanically, or against a digital image. | No | — | Not explicitly handled in `server/services/matter`. |
 | `CameraAvStreamManagement` | This cluster is used to allow clients to manage, control, and configure various audio, video, and snapshot streams on a camera. | No | camera/image (easy) | Not explicitly handled in `server/services/matter`. |
-| `CarbonDioxideConcentrationMeasurement` | Measures carbon dioxide concentration values reported by a sensor. | No | co2-sensor/decimal (easy) | Not explicitly handled in `server/services/matter`. |
+| `CarbonDioxideConcentrationMeasurement` | Measures carbon dioxide concentration values reported by a sensor. | Yes | co2-sensor/decimal | CO2 concentration in ppm, read-only. |
 | `CarbonMonoxideConcentrationMeasurement` | Measures carbon monoxide concentration values reported by a sensor. | No | co-sensor/decimal (easy) | Not explicitly handled in `server/services/matter`. |
 | `Channel` | This cluster provides an interface for controlling the current Channel on a device or endpoint. | No | television/channel (easy) | Not explicitly handled in `server/services/matter`. |
 | `Chime` | This cluster provides facilities to configure and play Chime sounds, such as those used in a doorbell. | No | siren/binary (easy) | Not explicitly handled in `server/services/matter`. |
@@ -123,7 +123,7 @@ The **Gladys feature** column lists matching `category/type` pairs from `server/
 | `TargetNavigator` | This cluster provides an interface for UX navigation within a set of targets on a device or endpoint. | No | — | Not explicitly handled in `server/services/matter`. |
 | `TemperatureControl` | This cluster provides an interface to the setpoint temperature on devices such as washers, refrigerators, and water heaters. | No | thermostat/target-temperature (easy) | Not explicitly handled in `server/services/matter`. |
 | `TemperatureMeasurement` | This cluster provides an interface to temperature measurement functionality, including configuration and provision of notifications of temperature measurements. | Yes | temperature-sensor/decimal | Temperature sensor. |
-| `Thermostat` | Provides temperature setpoints, local temperature, and HVAC control-related attributes and commands. | Yes | temperature-sensor/decimal, thermostat/target-temperature, air-conditioning/target-temperature | Local temperature + heating/cooling setpoints. |
+| `Thermostat` | Provides temperature setpoints, local temperature, and HVAC control-related attributes and commands. | Yes | temperature-sensor/decimal, thermostat/target-temperature, air-conditioning/target-temperature, air-conditioning/mode | Local temperature + heating/cooling setpoints + system mode (auto/cool/heat/dry/fan) for cooling devices. |
 | `ThermostatUserInterfaceConfiguration` | This cluster provides an interface to allow configuration of the user interface for a thermostat, or a thermostat controller device, that supports a keypad and LCD screen. | No | — | Not explicitly handled in `server/services/matter`. |
 | `ThreadBorderRouterManagement` | This cluster provides an interface for managing a Thread Border Router and the Thread network that it belongs to. | No | — | Not explicitly handled in `server/services/matter`. |
 | `ThreadNetworkDiagnostics` | The Thread Network Diagnostics Cluster provides a means to acquire standardized diagnostics metrics that may be used by a Node to assist a user or Administrator in diagnosing potential problems. | No | — | Not explicitly handled in `server/services/matter`. |
@@ -146,6 +146,39 @@ The **Gladys feature** column lists matching `category/type` pairs from `server/
 | `WiFiNetworkManagement` | This cluster provides an interface for getting information about the Wi-Fi network that a Network Infrastructure Manager device type provides. | No | — | Not explicitly handled in `server/services/matter`. |
 | `WindowCovering` | The window covering cluster provides an interface for controlling and adjusting automatic window coverings such as drapery motors, automatic shades, curtains and blinds. | Yes | shutter/position, shutter/state | Position + open/close/stop commands. |
 | `ZoneManagement` | This cluster provides an interface to manage regions of interest, or Zones, which can be either manufacturer or user defined. | No | — | Not explicitly handled in `server/services/matter`. |
+
+## BooleanState device types
+
+The `BooleanState` cluster only exposes a raw `StateValue` boolean, without saying what that boolean
+means. Matter distinguishes the sensors built on top of it through the **device type** of the
+endpoint (read with `endpoint.getDeviceTypes()`), so Gladys uses that device type to pick the right
+category. The mapping lives in `server/services/matter/utils/booleanStateMatterMapping.js`.
+
+| Matter device type | ID | Gladys feature | `StateValue = true` | `StateValue = false` |
+| --- | --- | --- | --- | --- |
+| Water Leak Detector | `0x0043` | `leak-sensor/binary` | `1` — leak detected | `0` — no leak |
+| Contact Sensor | `0x0015` | `opening-sensor/binary` | `1` — closed (`OPENING_SENSOR_STATE.CLOSE`) | `0` — open (`OPENING_SENSOR_STATE.OPEN`) |
+| Rain Sensor | `0x0044` | `rain-sensor/binary` | `1` — rain detected | `0` — no rain |
+| Water Freeze Detector | `0x0041` | `switch/binary` (fallback) | `1` — freeze detected | `0` — no freeze |
+| Any other / unknown device type | — | `switch/binary` (fallback) | `1` | `0` |
+
+The polarity is the same for every mapped device type (`StateValue ? 1 : 0`), so
+`matter.listenToStateChange` and `matter.readInitialDeviceStates` emit the raw boolean as
+`STATE.ON` / `STATE.OFF` for all of them.
+
+The Water Freeze Detector device type keeps the generic read-only switch feature because Gladys has
+no frost/freeze category yet. The generic `switch/binary` fallback is also what any endpoint with an
+unknown (or vendor-specific) device type gets, so devices paired before this mapping existed keep
+working.
+
+**Devices already saved in Gladys are not remapped.** The category is only computed at discovery
+time, and the paired-device filter of the Matter integration (`compareDevices` in
+`front/src/routes/integration/all/matter/MatterDevices.jsx`) matches a discovered device with an
+existing one on the feature `external_id`, unit and params — not on the category or the type. None
+of those change here, so a leak detector already stored as `switch/binary` is still considered
+already paired and is not offered again: refreshing the discovery page does **not** remap it. The
+only upgrade path is to delete the device in Gladys and add it again, which resets the history
+selectors and the scenes referencing its features.
 
 ## How the percentage is calculated
 

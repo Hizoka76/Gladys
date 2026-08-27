@@ -1,4 +1,4 @@
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 
 const { assert, fake } = sinon;
 const { expect } = require('chai');
@@ -50,6 +50,16 @@ const featureTriggerAlarm = {
 const featureStopAlarm = {
   external_id: 'zigbee2mqtt:bosch-outdoor-siren:button:push:stop_alarm',
   type: 'push',
+};
+
+const featureSirenWarning = {
+  external_id: 'zigbee2mqtt:heiman-indoor-siren:siren:binary:warning',
+  type: 'binary',
+};
+
+const featureSirenMaxDuration = {
+  external_id: 'zigbee2mqtt:heiman-indoor-siren:duration:decimal:max_duration',
+  type: 'decimal',
 };
 
 describe('zigbee2mqtt setValue', () => {
@@ -158,6 +168,33 @@ describe('zigbee2mqtt setValue', () => {
       mqttClient.publish,
       'zigbee2mqtt/bosch-outdoor-siren/set',
       JSON.stringify({ stop_alarm: 'stop' }),
+    );
+  });
+
+  it('start Heiman siren warning', async () => {
+    await zigbee2MqttManager.setValue(null, featureSirenWarning, 1);
+    assert.calledOnceWithExactly(
+      mqttClient.publish,
+      'zigbee2mqtt/heiman-indoor-siren/set',
+      JSON.stringify({ warning: { mode: 'emergency', strobe: true, duration: 600 } }),
+    );
+  });
+
+  it('stop Heiman siren warning', async () => {
+    await zigbee2MqttManager.setValue(null, featureSirenWarning, 0);
+    assert.calledOnceWithExactly(
+      mqttClient.publish,
+      'zigbee2mqtt/heiman-indoor-siren/set',
+      JSON.stringify({ warning: { mode: 'stop', strobe: false, duration: 0 } }),
+    );
+  });
+
+  it('set Heiman siren max_duration', async () => {
+    await zigbee2MqttManager.setValue(null, featureSirenMaxDuration, 120);
+    assert.calledOnceWithExactly(
+      mqttClient.publish,
+      'zigbee2mqtt/heiman-indoor-siren/set',
+      JSON.stringify({ max_duration: 120 }),
     );
   });
 });

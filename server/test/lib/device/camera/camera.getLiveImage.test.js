@@ -1,6 +1,8 @@
 const EventEmitter = require('events');
 const { expect, assert } = require('chai');
-const { fake } = require('sinon');
+const sinon = require('sinon').createSandbox();
+
+const { fake } = sinon;
 const Device = require('../../../../lib/device');
 const StateManager = require('../../../../lib/state');
 const Job = require('../../../../lib/job');
@@ -47,5 +49,19 @@ describe('Camera.getLiveImage', () => {
     stateManager.setState('device', 'test-camera-2', {});
     const promise = deviceManager.camera.getLiveImage('test-camera-2');
     return assert.isRejected(promise, 'Service is not found or not configured.');
+  });
+  it('should not return the live image of a disabled camera', async () => {
+    const stateManager = new StateManager(event);
+    const serviceManager = new ServiceManager({}, stateManager);
+    const getImage = fake.resolves(RANDOM_IMAGE);
+    serviceManager.getServiceById = fake.returns({ device: { getImage } });
+    const deviceManager = new Device(event, {}, stateManager, serviceManager, {}, {}, job);
+    stateManager.setState('device', 'test-camera-disabled', {
+      features: [{ category: 'camera', type: 'enabled', last_value: 0 }],
+    });
+    const promise = deviceManager.camera.getLiveImage('test-camera-disabled');
+    await assert.isRejected(promise, 'Camera is disabled');
+    // A disabled camera must not even request a fresh image from its integration
+    expect(getImage.called).to.equal(false);
   });
 });

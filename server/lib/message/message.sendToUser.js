@@ -1,5 +1,6 @@
 const { EVENTS, WEBSOCKET_MESSAGE_TYPES } = require('../../utils/constants');
 const { NotFoundError } = require('../../utils/coreErrors');
+const logger = require('../../utils/logger');
 const db = require('../../models');
 
 /**
@@ -9,14 +10,18 @@ const db = require('../../models');
  * @param {string} [file] - An optional file sent with the message.
  * @param {object} [options] - Extra message options.
  * @param {string} [options.messageType='chat'] - Message display type.
+ * @param {string} [options.service] - Send through this single channel instead of every one.
  * @returns {Promise} Resolve with created message.
  * @example
  * sendToUser('tony', 'Bonjour, voici votre bilan.', null, { messageType: 'notification' });
  */
 async function sendToUser(userSelector, text, file = null, options = {}) {
-  const { messageType = 'chat' } = options;
+  const { messageType = 'chat', service = null } = options;
   const user = this.state.get('user', userSelector);
   if (user === null) {
+    // a scene action pointing at a deleted/renamed user selector used to
+    // fail without saying which selector was wrong
+    logger.warn(`Unable to send message: user "${userSelector}" not found.`);
     throw new NotFoundError(`User ${userSelector} not found`);
   }
   // first, we insert the message in database
@@ -34,35 +39,11 @@ async function sendToUser(userSelector, text, file = null, options = {}) {
     userId: user.id,
     payload: messageCreated,
   });
-  // We send the message to the telegram service
-  const telegramService = this.service.getService('telegram');
-  // if the service exist and the user had telegram configured
-  if (telegramService && user.telegram_user_id) {
-    // we forward the message to Telegram
-    await telegramService.message.send(user.telegram_user_id, messageCreated);
-  }
-  // We send the message to the nextcloud talk service
-  const nextcloudTalkService = this.service.getService('nextcloud-talk');
-  // if the service exist
-  if (nextcloudTalkService) {
-    const nextcloudTalkToken = await this.variable.getValue(
-      'NEXTCLOUD_TALK_TOKEN',
-      nextcloudTalkService.message.serviceId,
-      user.id,
-    );
-    // if the user had nextcloud talk configured
-    if (nextcloudTalkToken) {
-      // we forward the message to Nextcloud Talk
-      await nextcloudTalkService.message.send(nextcloudTalkToken, messageCreated);
-    }
-  }
-  // We send the message to the callmebot service
-  const callmebotService = this.service.getService('callmebot');
-  // if the service exist
-  if (callmebotService) {
-    // we forward the message to CallMeBot
-    await callmebotService.message.send(user.id, messageCreated);
-  }
+  // forward to the outbound channels of the user: every service exposing
+  // message.sendToUser resolves its own identity and no-ops when the user
+  // is not linked — the core does not know any channel by name. When a
+  // service is given, only that channel is used.
+  await this.forwardToChannels(user, messageCreated, service);
   return messageCreated;
 }
 

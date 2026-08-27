@@ -1,6 +1,7 @@
 import get from 'get-value';
 import update from 'immutability-helper';
 import { route } from 'preact-router';
+import QRCode from 'qrcode';
 import { RequestStatus, LoginStatus } from '../utils/consts';
 import { validateEmail } from '../utils/validator';
 import { ERROR_MESSAGES, SYSTEM_VARIABLE_NAMES } from '../../../server/utils/constants';
@@ -40,11 +41,23 @@ function createActions(store) {
           email: state.gatewayLoginEmail,
           password: state.gatewayLoginPassword
         });
-        store.setState({
-          gatewayLoginResults,
-          gatewayLoginStep2: true,
-          gatewayLoginStatus: RequestStatus.Success
-        });
+        if (gatewayLoginResults.two_factor_token) {
+          store.setState({
+            gatewayLoginResults,
+            gatewayLoginStep2: true,
+            gatewayLoginStatus: RequestStatus.Success
+          });
+        } else {
+          // Two-factor is not enabled yet on this Gladys Plus account: the Gateway
+          // returned a short-lived access token to configure it. We display the 2FA
+          // enrollment form so the user can finish the setup without leaving Gladys.
+          store.setState({
+            gatewayConfigureTwoFactorAccessToken: gatewayLoginResults.access_token,
+            displayGatewayConfigureTwoFactor: true,
+            gatewayConfigureTwoFactorCode: null
+          });
+          await actions.getTwoFactorSecret(store.getState());
+        }
       } catch (e) {
         const error = get(e, 'response.data.error');
         if (error === ERROR_MESSAGES.NO_CONNECTED_TO_THE_INTERNET) {
@@ -58,6 +71,85 @@ function createActions(store) {
         }
       }
     },
+    async getTwoFactorSecret(state) {
+      store.setState({
+        gatewayLoginStatus: RequestStatus.Getting
+      });
+      try {
+        const { otpauth_url: otpauthUrl } = await state.httpClient.post('/api/v1/gateway/configure-two-factor', {
+          access_token: state.gatewayConfigureTwoFactorAccessToken
+        });
+        const secret = new URL(otpauthUrl).searchParams.get('secret');
+        const dataUrl = await QRCode.toDataURL(otpauthUrl);
+        store.setState({
+          gatewayConfigureTwoFactorDataUrl: dataUrl,
+          gatewayConfigureTwoFactorSecret: secret,
+          gatewayLoginStatus: RequestStatus.Success
+        });
+      } catch (e) {
+        store.setState({
+          gatewayLoginStatus: RequestStatus.Error
+        });
+      }
+    },
+    async enableTwoFactor(state, e) {
+      if (e) {
+        e.preventDefault();
+      }
+      store.setState({
+        gatewayLoginStatus: RequestStatus.Getting
+      });
+      try {
+        await state.httpClient.post('/api/v1/gateway/enable-two-factor', {
+          access_token: state.gatewayConfigureTwoFactorAccessToken,
+          two_factor_code: state.gatewayConfigureTwoFactorCode
+        });
+      } catch (e) {
+        const error = get(e, 'response.data.error');
+        if (error === ERROR_MESSAGES.NO_CONNECTED_TO_THE_INTERNET) {
+          store.setState({
+            gatewayLoginStatus: RequestStatus.NetworkError
+          });
+        } else {
+          store.setState({
+            gatewayLoginStatus: LoginStatus.WrongTwoFactorCodeError
+          });
+        }
+        return;
+      }
+      try {
+        // 2FA is now enabled: we log in again (email/password are still in memory)
+        // to get a two_factor_token, and let the user finalize the connection with
+        // a fresh code from their 2FA app.
+        const gatewayLoginResults = await state.httpClient.post('/api/v1/gateway/login', {
+          email: state.gatewayLoginEmail,
+          password: state.gatewayLoginPassword
+        });
+        store.setState({
+          gatewayLoginResults,
+          displayGatewayConfigureTwoFactor: false,
+          gatewayConfigureTwoFactorAccessToken: null,
+          gatewayConfigureTwoFactorDataUrl: null,
+          gatewayConfigureTwoFactorSecret: null,
+          gatewayConfigureTwoFactorCode: null,
+          gatewayTwoFactorJustEnabled: true,
+          gatewayLoginTwoFactorCode: null,
+          gatewayLoginStep2: true,
+          gatewayLoginStatus: RequestStatus.Success
+        });
+      } catch (e) {
+        store.setState({
+          gatewayLoginStatus: RequestStatus.Error
+        });
+      }
+    },
+    async copyTwoFactorSecret(state) {
+      try {
+        await navigator.clipboard.writeText(state.gatewayConfigureTwoFactorSecret);
+      } catch (e) {
+        console.error(e);
+      }
+    },
     async loginTwoFactor(state, e) {
       if (e) {
         e.preventDefault();
@@ -66,10 +158,19 @@ function createActions(store) {
         gatewayLoginStatus: RequestStatus.Getting
       });
       try {
-        await state.httpClient.post('/api/v1/gateway/login-two-factor', {
-          two_factor_token: state.gatewayLoginResults.two_factor_token,
-          two_factor_code: state.gatewayLoginTwoFactorCode
-        });
+        // The user just enabled two-factor: the Gateway generates their recovery codes
+        // during this call and returns them once (it only stores hashes). It has to be
+        // done there: right after, Gladys connects to the Gateway as the instance and
+        // loses the Gladys Plus user token needed to generate them.
+        const { recovery_codes: gatewayLoginRecoveryCodes } = await state.httpClient.post(
+          '/api/v1/gateway/login-two-factor',
+          {
+            two_factor_token: state.gatewayLoginResults.two_factor_token,
+            two_factor_code: state.gatewayLoginUseRecoveryCode ? undefined : state.gatewayLoginTwoFactorCode,
+            two_factor_recovery_code: state.gatewayLoginUseRecoveryCode ? state.gatewayLoginRecoveryCode : undefined,
+            generate_recovery_codes: state.gatewayTwoFactorJustEnabled === true && !state.gatewayLoginUseRecoveryCode
+          }
+        );
         await actions.getStatus(store.getState());
         await actions.getKeys(store.getState());
         await actions.getInstanceKeys(store.getState());
@@ -78,17 +179,57 @@ function createActions(store) {
           gatewayLoginStatus: RequestStatus.Success,
           displayGatewayLogin: false,
           gatewayLoginStep2: false,
+          gatewayTwoFactorJustEnabled: false,
+          gatewayLoginUseRecoveryCode: false,
+          gatewayLoginRecoveryCode: null,
+          gatewayLoginRecoveryCodes: gatewayLoginRecoveryCodes || null,
           displayConnectedSuccess: true
         });
       } catch (e) {
-        store.setState({
-          gatewayLoginStatus: RequestStatus.Error
-        });
+        const status = get(e, 'response.status');
+        if (status >= 400 && status < 500) {
+          store.setState({
+            gatewayLoginStatus: state.gatewayLoginUseRecoveryCode
+              ? LoginStatus.WrongRecoveryCodeError
+              : LoginStatus.WrongTwoFactorCodeError
+          });
+        } else {
+          store.setState({
+            gatewayLoginStatus: RequestStatus.Error
+          });
+        }
       }
+    },
+    loginTwoFactorRecoveryCode(state, e) {
+      return actions.loginTwoFactor(state, e);
+    },
+    showRecoveryCodeLogin(state, e) {
+      if (e) {
+        e.preventDefault();
+      }
+      store.setState({
+        gatewayLoginUseRecoveryCode: true,
+        gatewayLoginStatus: null
+      });
+    },
+    showTwoFactorCodeLogin(state, e) {
+      if (e) {
+        e.preventDefault();
+      }
+      store.setState({
+        gatewayLoginUseRecoveryCode: false,
+        gatewayLoginStatus: null
+      });
+    },
+    updateLoginRecoveryCode(state, e) {
+      store.setState({
+        gatewayLoginRecoveryCode: e.target.value
+      });
     },
     finalizeGatewaySetup() {
       store.setState({
-        displayConnectedSuccess: false
+        displayConnectedSuccess: false,
+        gatewayLoginRecoveryCodes: null
       });
     },
     async disconnect(state) {
@@ -331,6 +472,19 @@ function createActions(store) {
       store.setState({
         gatewayLoginTwoFactorCode: e.target.value
       });
+      if (e.target.value.length === 6) {
+        const upToDateState = store.getState();
+        actions.loginTwoFactor(upToDateState, e);
+      }
+    },
+    updateConfigureTwoFactorCode(state, e) {
+      store.setState({
+        gatewayConfigureTwoFactorCode: e.target.value
+      });
+      if (e.target.value.length === 6) {
+        const upToDateState = store.getState();
+        actions.enableTwoFactor(upToDateState, e);
+      }
     },
     cancelGatewayLogin(state, e) {
       if (e) {
@@ -339,7 +493,15 @@ function createActions(store) {
       store.setState({
         displayGatewayLogin: false,
         gatewayLoginStatus: null,
-        gatewayLoginStep2: false
+        gatewayLoginStep2: false,
+        gatewayLoginUseRecoveryCode: false,
+        gatewayLoginRecoveryCode: null,
+        displayGatewayConfigureTwoFactor: false,
+        gatewayConfigureTwoFactorAccessToken: null,
+        gatewayConfigureTwoFactorDataUrl: null,
+        gatewayConfigureTwoFactorSecret: null,
+        gatewayConfigureTwoFactorCode: null,
+        gatewayTwoFactorJustEnabled: false
       });
     },
     displayGatewayLoginForm(state, e) {
@@ -352,7 +514,15 @@ function createActions(store) {
         gatewayLoginStatus: null,
         gatewayLoginEmail: null,
         gatewayLoginPassword: null,
-        gatewayLoginTwoFactorCode: null
+        gatewayLoginTwoFactorCode: null,
+        gatewayLoginUseRecoveryCode: false,
+        gatewayLoginRecoveryCode: null,
+        displayGatewayConfigureTwoFactor: false,
+        gatewayConfigureTwoFactorAccessToken: null,
+        gatewayConfigureTwoFactorDataUrl: null,
+        gatewayConfigureTwoFactorSecret: null,
+        gatewayConfigureTwoFactorCode: null,
+        gatewayTwoFactorJustEnabled: false
       });
     },
     async refreshCard(state) {
@@ -432,27 +602,6 @@ function createActions(store) {
       script.onload = () => {
         store.setState({ stripeLoaded: true });
       };
-    },
-    async tempSignupForRestore(state, language) {
-      await state.session.init();
-      if (state.session.isConnected()) {
-        return null;
-      }
-      const user = await state.httpClient.post(`/api/v1/signup`, {
-        firstname: 'temp-user',
-        lastname: 'temp-user',
-        password: 'temp-password',
-        role: 'admin',
-        email: 'temp-user@test.fr',
-        language,
-        birthdate: new Date()
-      });
-      store.setState({
-        user,
-        createLocalAccountStatus: RequestStatus.Success
-      });
-      await state.session.saveUser(user);
-      await state.session.init();
     }
   };
   return actions;

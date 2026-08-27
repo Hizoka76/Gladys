@@ -16,6 +16,11 @@ import GaugeBox from '../../components/boxs/gauge/GaugeBox';
 import EnergyConsumptionBox from '../../components/boxs/energy-consumption/EnergyConsumption';
 import VoiceAssistantBox from '../../components/boxs/voice-assistant/VoiceAssistantBox';
 import LinkBox from '../../components/boxs/link/LinkBox';
+import PhotoBox from '../../components/boxs/photo/PhotoBox';
+import SunBox from '../../components/boxs/sun/Sun';
+import ChipsBox from '../../components/boxs/chips/ChipsBox';
+import ActionsBox from '../../components/boxs/actions/ActionsBox';
+import HouseViewBox from '../../components/boxs/house-view/HouseViewBox';
 
 const Box = ({ children, ...props }) => {
   switch (props.box.type) {
@@ -55,6 +60,16 @@ const Box = ({ children, ...props }) => {
       return <VoiceAssistantBox {...props} />;
     case 'link':
       return <LinkBox {...props} />;
+    case 'photo':
+      return <PhotoBox {...props} />;
+    case 'sun':
+      return <SunBox {...props} />;
+    case 'chips':
+      return <ChipsBox {...props} />;
+    case 'house-view':
+      return <HouseViewBox {...props} />;
+    case 'actions':
+      return <ActionsBox {...props} />;
   }
 };
 
