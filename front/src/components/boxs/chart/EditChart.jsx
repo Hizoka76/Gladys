@@ -2,6 +2,7 @@ import { Component } from 'preact';
 import { Localizer, Text } from 'preact-i18n';
 import { connect } from 'unistore/preact';
 import Select from 'react-select';
+import closeMenuOnScroll from '../../../utils/closeMenuOnScroll';
 import update from 'immutability-helper';
 import get from 'get-value';
 
@@ -174,9 +175,17 @@ class EditChart extends Component {
     const newDeviceFeature = this.state.selectedDeviceFeaturesOptions.map(o => {
       return o.value;
     });
+    // The units must always stay aligned with the device features: they are read by index
+    // in the chart. Re-computing them here keeps them in sync when features are re-ordered,
+    // and refreshes units that changed since the box was configured.
+    const newUnits = this.state.selectedDeviceFeaturesOptions.map(o => {
+      const deviceFeature = this.deviceFeatureBySelector.get(o.value);
+      return deviceFeature ? deviceFeature.unit : null;
+    });
     this.props.updateBoxConfig(this.props.x, this.props.y, {
       device_feature_names: newDeviceFeatureNames,
-      device_features: newDeviceFeature
+      device_features: newDeviceFeature,
+      units: newUnits
     });
   };
 
@@ -472,6 +481,9 @@ class EditChart extends Component {
                   <Text id="dashboard.boxes.devices.addADeviceLabel" />
                 </label>
                 <Select
+                  menuPlacement="auto"
+                  menuPortalTarget={document.body}
+                  closeMenuOnScroll={closeMenuOnScroll}
                   onChange={this.addDeviceFeature}
                   value={[]}
                   options={deviceOptions}
@@ -491,7 +503,6 @@ class EditChart extends Component {
                   moveDevice={this.moveDevice}
                   removeDevice={this.removeDevice}
                   updateDeviceFeatureName={this.updateDeviceFeatureName}
-                  isTouchDevice={false}
                 />
               )}
             </div>
@@ -523,6 +534,9 @@ class EditChart extends Component {
                     />
                   </label>
                   <Select
+                    menuPlacement="auto"
+                    menuPortalTarget={document.body}
+                    closeMenuOnScroll={closeMenuOnScroll}
                     defaultValue={colorOptions.find(({ value }) => value === DEFAULT_COLORS[i])}
                     value={
                       props.box.colors &&
@@ -545,6 +559,9 @@ class EditChart extends Component {
                     <Text id="dashboard.boxes.chart.on" />
                   </label>
                   <Select
+                    menuPlacement="auto"
+                    menuPortalTarget={document.body}
+                    closeMenuOnScroll={closeMenuOnScroll}
                     defaultValue={colorOptions.find(({ value }) => value === DEFAULT_COLORS[0])}
                     value={
                       props.box.colors &&
@@ -564,6 +581,9 @@ class EditChart extends Component {
                     <Text id="dashboard.boxes.chart.off" />
                   </label>
                   <Select
+                    menuPlacement="auto"
+                    menuPortalTarget={document.body}
+                    closeMenuOnScroll={closeMenuOnScroll}
                     defaultValue={colorOptions.find(({ value }) => value === DEFAULT_COLORS[1])}
                     value={
                       props.box.colors &&
@@ -698,6 +718,11 @@ class EditChart extends Component {
                     <option value="last-day">
                       <Text id="dashboard.boxes.chart.lastDay" />
                     </option>
+                    {props.box.chart_type !== 'timeline' && (
+                      <option value="last-three-days">
+                        <Text id="dashboard.boxes.chart.lastThreeDays" />
+                      </option>
+                    )}
                     {props.box.chart_type !== 'timeline' && (
                       <option value="last-week">
                         <Text id="dashboard.boxes.chart.lastSevenDays" />

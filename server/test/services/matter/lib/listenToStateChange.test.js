@@ -15,6 +15,7 @@ const {
   TotalVolatileOrganicCompoundsConcentrationMeasurement,
   NitrogenDioxideConcentrationMeasurement,
   FormaldehydeConcentrationMeasurement,
+  CarbonDioxideConcentrationMeasurement,
   ElectricalPowerMeasurement,
   ElectricalEnergyMeasurement,
   HepaFilterMonitoring,
@@ -23,15 +24,16 @@ const {
   RvcRunMode,
   RvcCleanMode,
   PowerSource,
+  DoorLock,
   // eslint-disable-next-line import/no-unresolved
 } = require('@matter/main/clusters');
 
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 const { expect } = require('chai');
 
 const { fake, assert } = sinon;
 
-const { EVENTS, STATE, BUTTON_STATUS, FAN_MODE } = require('../../../../utils/constants');
+const { EVENTS, STATE, BUTTON_STATUS, FAN_MODE, AC_MODE, LOCK } = require('../../../../utils/constants');
 
 const MatterHandler = require('../../../../services/matter/lib');
 
@@ -361,6 +363,23 @@ describe('Matter.listenToStateChange', () => {
       state: 100,
     });
   });
+  it('should listen to state change (CarbonDioxideConcentrationMeasurement)', async () => {
+    const clusterClient = {
+      id: CarbonDioxideConcentrationMeasurement.Complete.id,
+      addMeasuredValueAttributeListener: (callback) => {
+        callback(650);
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: `matter:1234:1:${CarbonDioxideConcentrationMeasurement.Complete.id}`,
+      state: 650,
+    });
+  });
   it('should listen to state change (Thermostat heating)', async () => {
     const clusterClient = {
       id: Thermostat.Complete.id,
@@ -432,6 +451,7 @@ describe('Matter.listenToStateChange', () => {
       addOccupiedCoolingSetpointAttributeListener: (callback) => {
         callback(2000);
       },
+      addSystemModeAttributeListener: fake.returns(null),
     };
     const device = {
       number: 1,
@@ -442,6 +462,51 @@ describe('Matter.listenToStateChange', () => {
       device_feature_external_id: 'matter:1234:1:513:cooling',
       state: 20,
     });
+  });
+  it('should listen to state change (Thermostat systemMode)', async () => {
+    const clusterClient = {
+      id: Thermostat.Complete.id,
+      supportedFeatures: {
+        cooling: true,
+      },
+      getLocalTemperatureAttribute: fake.resolves(null),
+      addLocalTemperatureAttributeListener: fake.returns(null),
+      addOccupiedCoolingSetpointAttributeListener: fake.returns(null),
+      addSystemModeAttributeListener: (callback) => {
+        // Matter SystemMode Cool = 3
+        callback(3);
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:513:mode',
+      state: AC_MODE.COOLING,
+    });
+  });
+  it('should ignore Thermostat systemMode values without a Gladys equivalent', async () => {
+    const clusterClient = {
+      id: Thermostat.Complete.id,
+      supportedFeatures: {
+        cooling: true,
+      },
+      getLocalTemperatureAttribute: fake.resolves(null),
+      addLocalTemperatureAttributeListener: fake.returns(null),
+      addOccupiedCoolingSetpointAttributeListener: fake.returns(null),
+      addSystemModeAttributeListener: (callback) => {
+        // Matter SystemMode Off = 0
+        callback(0);
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.notCalled(gladys.event.emit);
   });
   it('should listen to state change (WindowCovering)', async () => {
     const clusterClient = {
@@ -604,6 +669,90 @@ describe('Matter.listenToStateChange', () => {
     assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
       device_feature_external_id: 'matter:1234:1:145:energy',
       state: 1500,
+    });
+  });
+  it('should listen to state change (ElectricalPowerMeasurement - ActivePower as BigInt)', async () => {
+    const clusterClient = {
+      id: ElectricalPowerMeasurement.Complete.id,
+      addActivePowerAttributeListener: (callback) => {
+        callback(1500000n); // 1500000 mW = 1500 W
+      },
+      addVoltageAttributeListener: () => {},
+      addActiveCurrentAttributeListener: () => {},
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:144:power',
+      state: 1500,
+    });
+  });
+  it('should listen to state change (ElectricalPowerMeasurement - Voltage as BigInt)', async () => {
+    const clusterClient = {
+      id: ElectricalPowerMeasurement.Complete.id,
+      supportedFeatures: {
+        voltage: true,
+      },
+      addActivePowerAttributeListener: () => {},
+      addVoltageAttributeListener: (callback) => {
+        callback(230000n); // 230000 mV = 230 V
+      },
+      addActiveCurrentAttributeListener: () => {},
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:144:voltage',
+      state: 230,
+    });
+  });
+  it('should listen to state change (ElectricalPowerMeasurement - ActiveCurrent as BigInt)', async () => {
+    const clusterClient = {
+      id: ElectricalPowerMeasurement.Complete.id,
+      supportedFeatures: {
+        current: true,
+      },
+      addActivePowerAttributeListener: () => {},
+      addVoltageAttributeListener: () => {},
+      addActiveCurrentAttributeListener: (callback) => {
+        callback(6500n); // 6500 mA = 6.5 A
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:144:current',
+      state: 6.5,
+    });
+  });
+  it('should listen to state change (ElectricalEnergyMeasurement - CumulativeEnergy as BigInt)', async () => {
+    const clusterClient = {
+      id: ElectricalEnergyMeasurement.Complete.id,
+      supportedFeatures: {
+        cumulativeEnergy: true,
+      },
+      addCumulativeEnergyImportedAttributeListener: (callback) => {
+        // 4500000000 mWh = 4500 kWh, above INT32_MAX so matter.js delivers a BigInt
+        callback({ energy: 4500000000n });
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:145:energy',
+      state: 4500,
     });
   });
   it('should listen to state change (HepaFilterMonitoring)', async () => {
@@ -835,6 +984,65 @@ describe('Matter.listenToStateChange', () => {
     assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
       device_feature_external_id: 'matter:1234:2:85',
       state: 0,
+    });
+  });
+  it('should listen to state change (DoorLock locked)', async () => {
+    const clusterClient = {
+      id: DoorLock.Complete.id,
+      addLockStateAttributeListener: (callback) => {
+        callback(DoorLock.LockState.Locked);
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:257:state',
+      state: LOCK.STATE.LOCKED,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:257:lock',
+      state: LOCK.ACTION.LOCK,
+    });
+  });
+  it('should listen to state change (DoorLock unlocked)', async () => {
+    const clusterClient = {
+      id: DoorLock.Complete.id,
+      addLockStateAttributeListener: (callback) => {
+        callback(DoorLock.LockState.Unlocked);
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:257:state',
+      state: LOCK.STATE.UNLOCKED,
+    });
+    assert.calledWith(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:257:lock',
+      state: LOCK.ACTION.UNLOCK,
+    });
+  });
+  it('should only emit the detailed state when the DoorLock state is not fully locked', async () => {
+    const clusterClient = {
+      id: DoorLock.Complete.id,
+      addLockStateAttributeListener: (callback) => {
+        callback(DoorLock.LockState.NotFullyLocked);
+      },
+    };
+    const device = {
+      number: 1,
+      getClusterClientById: (id) => (id === clusterClient.id ? clusterClient : null),
+    };
+    await matterHandler.listenToStateChange(1234n, '1', device);
+    assert.calledOnceWithExactly(gladys.event.emit, EVENTS.DEVICE.NEW_STATE, {
+      device_feature_external_id: 'matter:1234:1:257:state',
+      state: LOCK.STATE.ACTIVITY,
     });
   });
   it('should listen to state change (PowerSource battery)', async () => {

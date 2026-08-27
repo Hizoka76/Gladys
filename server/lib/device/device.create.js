@@ -2,6 +2,7 @@ const Promise = require('bluebird');
 const { BadParameters } = require('../../utils/coreErrors');
 const db = require('../../models');
 const { EVENTS } = require('../../utils/constants');
+const { buildUniqueSelector } = require('../../utils/addSelector');
 const { resolveEnergyParentId } = require('../../utils/resolveEnergyParentId');
 const { getStandardDeviceIncludes } = require('../../utils/deviceQueryIncludes');
 const logger = require('../../utils/logger');
@@ -35,6 +36,23 @@ const getDeviceInDb = async (device) => {
   const deviceByExternalId = await getByExternalId(device.external_id);
   return deviceByExternalId;
 };
+
+// Those columns hold the current STATE of a feature, not its definition: they are
+// written by device.saveState / device.saveStringState and by the aggregation jobs.
+// A caller saving a device sends back the features it read earlier (the MQTT device
+// page posts the whole device just to append one feature), so letting them through
+// rolled every existing feature back to the value the client had in hand — null for
+// a feature that had not received anything yet when the page was loaded. They are
+// only accepted when the feature is created, so an integration can declare a first
+// value along with a brand new feature (lan-manager does it for presence).
+const DEVICE_FEATURE_STATE_COLUMNS = [
+  'last_value',
+  'last_value_string',
+  'last_value_changed',
+  'last_hourly_aggregate',
+  'last_daily_aggregate',
+  'last_monthly_aggregate',
+];
 
 const matchFeatureInList = (existingFeature, features) => {
   // We are matching on both external_id and id, so we can match a device that changed external_id but kept the same id
@@ -100,6 +118,14 @@ async function create(device) {
 
     // if it doesn't exist, we create it
     if (deviceInDb === null) {
+      // The selector is derived from the name (addSelector hook) and is unique
+      // in DB: two devices sharing a name would collide. The caller does not
+      // choose it (the frontend sends no selector when creating a discovered
+      // device), so the conflict was a dead end for the user.
+      const uniqueSelector = await buildUniqueSelector(db.Device, device.selector || device.name, { transaction });
+      if (uniqueSelector) {
+        device.selector = uniqueSelector;
+      }
       deviceInDb = await db.Device.create(device, { transaction });
     } else {
       actionEvent = EVENTS.DEVICE.UPDATE;
@@ -146,28 +172,70 @@ async function create(device) {
       return featureToSave;
     });
 
+    // Feature selectors are unique in DB too, and feature names collide even
+    // more easily than device names (a "Volume" on each speaker published by
+    // the same integration). They are resolved before the insert pass, one at
+    // a time: two features of the same batch must not pick the same candidate,
+    // and the pass below runs them concurrently.
+    const featureSelectorsTaken = new Set();
+    await Promise.each(featuresToSave, async (feature) => {
+      if (matchFeatureInList(feature, deviceToReturn.features)) {
+        return;
+      }
+      const uniqueSelector = await buildUniqueSelector(db.DeviceFeature, feature.selector || feature.name, {
+        transaction,
+        taken: featureSelectorsTaken,
+      });
+      if (uniqueSelector) {
+        feature.selector = uniqueSelector;
+      }
+    });
+
     // Save features first without energy_parent_id, then resolve parent links in a second pass
     const newFeatures = await Promise.map(featuresToSave, async (feature) => {
-      // if the device feature already exist
-      const matchedFeature = matchFeatureInList(feature, deviceToReturn.features);
-      if (matchedFeature) {
-        const deviceFeature = await db.DeviceFeature.findOne({
-          where: {
-            id: matchedFeature.id,
-          },
-        });
-        const featureToUpdate = { ...feature };
-        delete featureToUpdate.selector;
-        await deviceFeature.update(featureToUpdate, { transaction });
-        if (deviceFeature.keep_history === false) {
-          deviceFeaturesIdsToPurge.push(deviceFeature.id);
+      try {
+        // if the device feature already exist
+        const matchedFeature = matchFeatureInList(feature, deviceToReturn.features);
+        if (matchedFeature) {
+          const deviceFeature = await db.DeviceFeature.findOne({
+            where: {
+              id: matchedFeature.id,
+            },
+          });
+          // The purge below is a background JOB: a t_job row, several DuckDB &
+          // SQLite counts and their websocket broadcasts, per feature. It is only
+          // worth running when the feature JUST stopped keeping history. A feature
+          // already saved with keep_history = false has nothing left to purge
+          // (device.saveState / device.saveHistoricalState never write a state for
+          // it), so re-purging it on every save was pure background load: a user
+          // assigning a room to one device after another queued one such job per
+          // keep_history = false feature per save, and those jobs pile up behind the
+          // single DuckDB connection until the whole instance stops responding.
+          const keepHistoryBeforeUpdate = deviceFeature.keep_history;
+          const featureToUpdate = { ...feature };
+          delete featureToUpdate.selector;
+          DEVICE_FEATURE_STATE_COLUMNS.forEach((column) => {
+            delete featureToUpdate[column];
+          });
+          await deviceFeature.update(featureToUpdate, { transaction });
+          if (keepHistoryBeforeUpdate !== false && deviceFeature.keep_history === false) {
+            deviceFeaturesIdsToPurge.push(deviceFeature.id);
+          }
+          return deviceFeature.get({ plain: true });
         }
-        return deviceFeature.get({ plain: true });
+        // if not, we create it
+        feature.device_id = deviceToReturn.id;
+        const featureCreated = await db.DeviceFeature.create(feature, { transaction });
+        return featureCreated.get({ plain: true });
+      } catch (e) {
+        // A device can publish dozens of features: "min cannot be null" alone is
+        // not actionable. We tag the error with the identity of the rejected
+        // feature, so the API (and the Discovery screen) can name it. The
+        // context stays structured: the wording is the frontend's job, it must
+        // be translated like the rest of the UI.
+        e.gladysContext = { type: 'device_feature', name: feature.name || feature.external_id || null };
+        throw e;
       }
-      // if not, we create it
-      feature.device_id = deviceToReturn.id;
-      const featureCreated = await db.DeviceFeature.create(feature, { transaction });
-      return featureCreated.get({ plain: true });
     });
 
     await Promise.map(newFeatures, async (savedFeature) => {
@@ -204,7 +272,7 @@ async function create(device) {
       }
 
       savedFeature.supported_options = await syncFeatureSupportedOptions(
-        savedFeature.id,
+        savedFeature,
         payloadFeature.supported_options,
         transaction,
       );
