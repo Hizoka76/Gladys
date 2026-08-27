@@ -9,6 +9,8 @@ const {
   RvcCleanMode,
   PowerSource,
   Thermostat,
+  CarbonDioxideConcentrationMeasurement,
+  DoorLock,
   // eslint-disable-next-line import/no-unresolved
 } = require('@matter/main/clusters');
 
@@ -16,6 +18,7 @@ const {
   convertToGladysDevice,
   matterExternalIdToSelector,
 } = require('../../../../services/matter/utils/convertToGladysDevice');
+const { AC_MODE, LOCK } = require('../../../../utils/constants');
 
 describe('Matter.convertToGladysDevice', () => {
   const serviceId = 'service-1';
@@ -25,19 +28,22 @@ describe('Matter.convertToGladysDevice', () => {
     productName: 'Test Product',
   };
 
-  it('should create a read-only binary feature for BooleanState cluster', async () => {
-    const clusterClient = {
-      id: BooleanState.Complete.id,
-      name: 'BooleanState',
-      endpointId: 1,
-    };
+  const buildBooleanStateDevice = (deviceTypes) => ({
+    name: 'Test Device',
+    number: 1,
+    getAllClusterClients: () => [
+      {
+        id: BooleanState.Complete.id,
+        name: 'BooleanState',
+        endpointId: 1,
+      },
+    ],
+    getChildEndpoints: () => [],
+    ...(deviceTypes ? { getDeviceTypes: () => deviceTypes } : {}),
+  });
 
-    const device = {
-      name: 'Test Device',
-      number: 1,
-      getAllClusterClients: () => [clusterClient],
-      getChildEndpoints: () => [],
-    };
+  it('should create a read-only binary feature for BooleanState cluster', async () => {
+    const device = buildBooleanStateDevice();
 
     const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
 
@@ -53,6 +59,56 @@ describe('Matter.convertToGladysDevice', () => {
       min: 0,
       max: 1,
     });
+  });
+
+  it('should create a leak sensor feature for a BooleanState cluster on a water leak detector', async () => {
+    const device = buildBooleanStateDevice([{ name: 'MA-waterleakdetector', code: 0x0043 }]);
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
+
+    expect(gladysDevice.features).to.have.lengthOf(1);
+    expect(gladysDevice.features[0]).to.deep.equal({
+      name: 'BooleanState - 1',
+      selector: matterExternalIdToSelector('matter:12345:1:69'),
+      category: 'leak-sensor',
+      type: 'binary',
+      read_only: true,
+      has_feedback: true,
+      external_id: 'matter:12345:1:69',
+      min: 0,
+      max: 1,
+    });
+  });
+
+  it('should create an opening sensor feature for a BooleanState cluster on a contact sensor', async () => {
+    const device = buildBooleanStateDevice([{ name: 'MA-contactsensor', code: 0x0015 }]);
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
+
+    expect(gladysDevice.features).to.have.lengthOf(1);
+    expect(gladysDevice.features[0].category).to.eq('opening-sensor');
+    expect(gladysDevice.features[0].type).to.eq('binary');
+    expect(gladysDevice.features[0].read_only).to.eq(true);
+  });
+
+  it('should create a rain sensor feature for a BooleanState cluster on a rain sensor', async () => {
+    const device = buildBooleanStateDevice([{ name: 'MA-rainsensor', code: 0x0044 }]);
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
+
+    expect(gladysDevice.features).to.have.lengthOf(1);
+    expect(gladysDevice.features[0].category).to.eq('rain-sensor');
+    expect(gladysDevice.features[0].type).to.eq('binary');
+  });
+
+  it('should fallback to a generic switch feature for a BooleanState cluster on an unknown device type', async () => {
+    const device = buildBooleanStateDevice([{ name: 'MA-waterfreezedetector', code: 0x0041 }]);
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
+
+    expect(gladysDevice.features).to.have.lengthOf(1);
+    expect(gladysDevice.features[0].category).to.eq('switch');
+    expect(gladysDevice.features[0].type).to.eq('binary');
   });
 
   it('should build stable selectors from external_id', async () => {
@@ -365,6 +421,65 @@ describe('Matter.convertToGladysDevice', () => {
     expect(gladysDevice.features).to.have.lengthOf(0);
   });
 
+  it('should create a CO2 sensor feature for CarbonDioxideConcentrationMeasurement cluster', async () => {
+    const clusterClient = {
+      id: CarbonDioxideConcentrationMeasurement.Complete.id,
+      name: 'CarbonDioxideConcentrationMeasurement',
+      endpointId: 1,
+      getMinMeasuredValueAttribute: async () => 400,
+      getMaxMeasuredValueAttribute: async () => 5000,
+    };
+
+    const device = {
+      name: 'CO2 Sensor',
+      number: 1,
+      getAllClusterClients: () => [clusterClient],
+      getChildEndpoints: () => [],
+    };
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
+
+    expect(gladysDevice.features).to.have.lengthOf(1);
+    expect(gladysDevice.features[0]).to.deep.equal({
+      name: 'CarbonDioxideConcentrationMeasurement - 1',
+      selector: gladysDevice.features[0].selector,
+      category: 'co2-sensor',
+      type: 'decimal',
+      read_only: true,
+      has_feedback: true,
+      unit: 'ppm',
+      external_id: `matter:12345:1:${CarbonDioxideConcentrationMeasurement.Complete.id}`,
+      min: 400,
+      max: 5000,
+    });
+  });
+
+  it('should use fallback CO2 sensor bounds when Matter values are missing', async () => {
+    const clusterClient = {
+      id: CarbonDioxideConcentrationMeasurement.Complete.id,
+      name: 'CarbonDioxideConcentrationMeasurement',
+      endpointId: 1,
+      getMinMeasuredValueAttribute: async () => null,
+      getMaxMeasuredValueAttribute: async () => null,
+    };
+
+    const device = {
+      name: 'CO2 Sensor',
+      number: 1,
+      getAllClusterClients: () => [clusterClient],
+      getChildEndpoints: () => [],
+    };
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
+
+    expect(gladysDevice.features).to.have.lengthOf(1);
+    expect(gladysDevice.features[0]).to.deep.include({
+      category: 'co2-sensor',
+      min: 0,
+      max: 10000,
+    });
+  });
+
   it('should create thermostat local temperature and setpoint features for Thermostat cluster', async () => {
     const clusterClient = {
       id: Thermostat.Complete.id,
@@ -385,7 +500,7 @@ describe('Matter.convertToGladysDevice', () => {
 
     const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1:child_endpoint:4');
 
-    expect(gladysDevice.features).to.have.lengthOf(3);
+    expect(gladysDevice.features).to.have.lengthOf(4);
     expect(gladysDevice.features[0]).to.deep.equal({
       name: 'Thermostat - 4 (Local temperature)',
       selector: gladysDevice.features[0].selector,
@@ -409,6 +524,121 @@ describe('Matter.convertToGladysDevice', () => {
       category: 'air-conditioning',
       type: 'target-temperature',
       external_id: 'matter:12345:1:child_endpoint:4:513:cooling',
+    });
+    expect(gladysDevice.features[3]).to.deep.include({
+      name: 'Thermostat - 4 (Mode)',
+      category: 'air-conditioning',
+      type: 'mode',
+      read_only: false,
+      has_feedback: true,
+      external_id: 'matter:12345:1:child_endpoint:4:513:mode',
+      min: AC_MODE.COOLING,
+      max: AC_MODE.FAN,
+      supported_options: [
+        { value: AC_MODE.COOLING, label: 'Cool' },
+        { value: AC_MODE.HEATING, label: 'Heat' },
+        { value: AC_MODE.DRYING, label: 'Dry' },
+        { value: AC_MODE.FAN, label: 'Fan' },
+      ],
+    });
+  });
+
+  it('should include auto in the mode supported options when auto mode is supported', async () => {
+    const clusterClient = {
+      id: Thermostat.Complete.id,
+      name: 'Thermostat',
+      endpointId: 4,
+      supportedFeatures: {
+        heating: true,
+        cooling: true,
+        autoMode: true,
+      },
+    };
+
+    const device = {
+      name: 'Air Conditioner',
+      number: 4,
+      getAllClusterClients: () => [clusterClient],
+      getChildEndpoints: () => [],
+    };
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1:child_endpoint:4');
+
+    const modeFeature = gladysDevice.features.find((feature) => feature.type === 'mode');
+    expect(modeFeature).to.deep.include({
+      min: AC_MODE.AUTO,
+      max: AC_MODE.FAN,
+      supported_options: [
+        { value: AC_MODE.AUTO, label: 'Auto' },
+        { value: AC_MODE.COOLING, label: 'Cool' },
+        { value: AC_MODE.HEATING, label: 'Heat' },
+        { value: AC_MODE.DRYING, label: 'Dry' },
+        { value: AC_MODE.FAN, label: 'Fan' },
+      ],
+    });
+  });
+
+  it('should not create air conditioning mode feature when cooling is not supported', async () => {
+    const clusterClient = {
+      id: Thermostat.Complete.id,
+      name: 'Thermostat',
+      endpointId: 4,
+      supportedFeatures: {
+        heating: true,
+      },
+    };
+
+    const device = {
+      name: 'Radiator',
+      number: 4,
+      getAllClusterClients: () => [clusterClient],
+      getChildEndpoints: () => [],
+    };
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1:child_endpoint:4');
+
+    const modeFeatures = gladysDevice.features.filter((feature) => feature.type === 'mode');
+    expect(modeFeatures).to.have.lengthOf(0);
+  });
+
+  it('should create lock features for DoorLock cluster', async () => {
+    const clusterClient = {
+      id: DoorLock.Complete.id,
+      name: 'DoorLock',
+      endpointId: 1,
+    };
+
+    const device = {
+      name: 'Door Lock',
+      number: 1,
+      getAllClusterClients: () => [clusterClient],
+      getChildEndpoints: () => [],
+    };
+
+    const gladysDevice = await convertToGladysDevice(serviceId, nodeId, device, basicInformation, '1');
+
+    expect(gladysDevice.features).to.have.lengthOf(2);
+    expect(gladysDevice.features[0]).to.deep.equal({
+      name: 'DoorLock - 1 (Lock)',
+      selector: matterExternalIdToSelector('matter:12345:1:257:lock'),
+      category: 'lock',
+      type: 'binary',
+      read_only: false,
+      has_feedback: true,
+      external_id: 'matter:12345:1:257:lock',
+      min: LOCK.ACTION.UNLOCK,
+      max: LOCK.ACTION.LOCK,
+    });
+    expect(gladysDevice.features[1]).to.deep.equal({
+      name: 'DoorLock - 1 (State)',
+      selector: matterExternalIdToSelector('matter:12345:1:257:state'),
+      category: 'lock',
+      type: 'state',
+      read_only: true,
+      has_feedback: true,
+      external_id: 'matter:12345:1:257:state',
+      min: LOCK.STATE.UNLOCKED,
+      max: LOCK.STATE.ERROR,
     });
   });
 });

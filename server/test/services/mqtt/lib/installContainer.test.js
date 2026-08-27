@@ -1,4 +1,4 @@
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 const proxyquire = require('proxyquire').noCallThru();
 const { expect } = require('chai');
 
@@ -70,6 +70,9 @@ describe('mqttHandler.installContainer', () => {
     const gladys = {
       event: {
         emit: fake.resolves(true),
+      },
+      service: {
+        getLocalServiceByName: fake.resolves(null),
       },
       system: {
         pull: fake.resolves(false),

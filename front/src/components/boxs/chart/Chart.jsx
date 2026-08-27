@@ -1,6 +1,8 @@
 import { Component, createRef } from 'preact';
 import { connect } from 'unistore/preact';
 import cx from 'classnames';
+import dayjs from 'dayjs';
+import localizedFormat from 'dayjs/plugin/localizedFormat';
 
 import { Text } from 'preact-i18n';
 import style from './style.css';
@@ -12,9 +14,12 @@ import ApexChartComponent from './ApexChartComponent';
 import { getDeviceName } from '../../../utils/device';
 import { formatHttpError } from '../../../utils/formatErrors';
 
+dayjs.extend(localizedFormat);
+
 const ONE_HOUR_IN_MINUTES = 60;
 const TWELVE_HOURS_IN_MINUTES = 12 * 60;
 const ONE_DAY_IN_MINUTES = 24 * 60;
+const THREE_DAYS_IN_MINUTES = 3 * 24 * 60;
 const SEVEN_DAYS_IN_MINUTES = 7 * 24 * 60;
 const THIRTY_DAYS_IN_MINUTES = 30 * 24 * 60;
 const THREE_MONTHS_IN_MINUTES = 3 * 30 * 24 * 60;
@@ -24,6 +29,7 @@ const intervalByName = {
   'last-hour': ONE_HOUR_IN_MINUTES,
   'last-twelve-hours': TWELVE_HOURS_IN_MINUTES,
   'last-day': ONE_DAY_IN_MINUTES,
+  'last-three-days': THREE_DAYS_IN_MINUTES,
   'last-week': SEVEN_DAYS_IN_MINUTES,
   'last-month': THIRTY_DAYS_IN_MINUTES,
   'last-three-months': THREE_MONTHS_IN_MINUTES,
@@ -94,6 +100,26 @@ const calculateVariation = (firstValue, lastValue) => {
 
 const allEqual = arr => arr.every(val => val === arr[0]);
 
+const getPeriodLabel = (interval, offset, language) => {
+  const endDate = dayjs().subtract(offset, 'minute');
+  const startDate = endDate.subtract(interval, 'minute');
+  if (interval <= ONE_DAY_IN_MINUTES) {
+    return `${startDate.locale(language).format('D MMM, HH:mm')} → ${endDate.locale(language).format('D MMM, HH:mm')}`;
+  }
+  return `${startDate.locale(language).format('D MMM YYYY')} → ${endDate.locale(language).format('D MMM YYYY')}`;
+};
+
+const INTERVAL_LABELS = {
+  [ONE_HOUR_IN_MINUTES]: 'dashboard.boxes.chart.lastHour',
+  [TWELVE_HOURS_IN_MINUTES]: 'dashboard.boxes.chart.lastTwelveHours',
+  [ONE_DAY_IN_MINUTES]: 'dashboard.boxes.chart.lastDay',
+  [THREE_DAYS_IN_MINUTES]: 'dashboard.boxes.chart.lastThreeDays',
+  [SEVEN_DAYS_IN_MINUTES]: 'dashboard.boxes.chart.lastSevenDays',
+  [THIRTY_DAYS_IN_MINUTES]: 'dashboard.boxes.chart.lastThirtyDays',
+  [THREE_MONTHS_IN_MINUTES]: 'dashboard.boxes.chart.lastThreeMonths',
+  [ONE_YEAR_IN_MINUTES]: 'dashboard.boxes.chart.lastYear'
+};
+
 class Chartbox extends Component {
   dropdownRef = createRef();
 
@@ -112,6 +138,7 @@ class Chartbox extends Component {
     e.preventDefault();
     await this.setState({
       interval: ONE_HOUR_IN_MINUTES,
+      offset: 0,
       dropdown: false
     });
     this.getData();
@@ -120,6 +147,7 @@ class Chartbox extends Component {
     e.preventDefault();
     await this.setState({
       interval: TWELVE_HOURS_IN_MINUTES,
+      offset: 0,
       dropdown: false
     });
     this.getData();
@@ -128,6 +156,16 @@ class Chartbox extends Component {
     e.preventDefault();
     await this.setState({
       interval: ONE_DAY_IN_MINUTES,
+      offset: 0,
+      dropdown: false
+    });
+    this.getData();
+  };
+  switchTo3DaysView = async e => {
+    e.preventDefault();
+    await this.setState({
+      interval: THREE_DAYS_IN_MINUTES,
+      offset: 0,
       dropdown: false
     });
     this.getData();
@@ -136,6 +174,7 @@ class Chartbox extends Component {
     e.preventDefault();
     await this.setState({
       interval: SEVEN_DAYS_IN_MINUTES,
+      offset: 0,
       dropdown: false
     });
     this.getData();
@@ -143,6 +182,7 @@ class Chartbox extends Component {
   switchTo30DaysView = async () => {
     await this.setState({
       interval: THIRTY_DAYS_IN_MINUTES,
+      offset: 0,
       dropdown: false
     });
     this.getData();
@@ -150,6 +190,7 @@ class Chartbox extends Component {
   switchTo3monthsView = async () => {
     await this.setState({
       interval: THREE_MONTHS_IN_MINUTES,
+      offset: 0,
       dropdown: false
     });
     this.getData();
@@ -157,8 +198,31 @@ class Chartbox extends Component {
   switchToYearlyView = async () => {
     await this.setState({
       interval: ONE_YEAR_IN_MINUTES,
+      offset: 0,
       dropdown: false
     });
+    this.getData();
+  };
+  navigateToPreviousPeriod = async () => {
+    await this.setState(prevState => ({
+      offset: prevState.offset + prevState.interval
+    }));
+    this.getData();
+  };
+  navigateToNextPeriod = async () => {
+    if (this.state.offset === 0) {
+      return;
+    }
+    await this.setState(prevState => ({
+      offset: Math.max(0, prevState.offset - prevState.interval)
+    }));
+    this.getData();
+  };
+  resetToCurrentPeriod = async () => {
+    if (this.state.offset === 0) {
+      return;
+    }
+    await this.setState({ offset: 0 });
     this.getData();
   };
   handleWebsocketConnected = ({ connected }) => {
@@ -195,14 +259,29 @@ class Chartbox extends Component {
     try {
       const maxStates = 300;
 
-      const data = await this.props.httpClient.get(`/api/v1/device_feature/aggregated_states`, {
+      const queryParams = {
         interval: this.state.interval,
         max_states: this.props.box.group_by ? undefined : maxStates,
         group_by: this.props.box.group_by,
         device_features: deviceFeatures.join(',')
-      });
+      };
+      if (this.state.offset > 0) {
+        queryParams.offset = this.state.offset;
+      }
+
+      const data = await this.props.httpClient.get(`/api/v1/device_feature/aggregated_states`, queryParams);
 
       let emptySeries = true;
+
+      // The unit of a device feature can change after the box was configured (device re-created,
+      // integration updated...), and the "units" saved in the box config is only a snapshot taken
+      // when the feature was added. So we use the unit returned by the API as the source of truth,
+      // and only fallback on the box config when the feature has no unit.
+      // Note: "unit" (singular) is the legacy attribute, kept for boxes saved before "units" existed.
+      const unitsByFeature = data.map((oneFeature, index) => {
+        const unitFromBoxConfig = this.props.box.units ? this.props.box.units[index] : this.props.box.unit;
+        return get(oneFeature, 'deviceFeature.unit') || unitFromBoxConfig;
+      });
 
       let series = [];
 
@@ -215,9 +294,11 @@ class Chartbox extends Component {
           name: get(this.props.intl.dictionary, 'dashboard.boxes.chart.on'),
           data: []
         };
-        const now = new Date();
+        // Segments still open at the end of the displayed period are clamped to the end of
+        // that period, so browsing a past period doesn't stretch the last bar until now.
+        const periodEnd = dayjs().subtract(this.state.offset, 'minute');
 
-        const lastValueTime = Math.round(now.getTime() / 1000) * 1000;
+        const lastValueTime = Math.round(periodEnd.valueOf() / 1000) * 1000;
         data.forEach((oneFeature, index) => {
           const { values, deviceFeature, device } = oneFeature;
           const deviceFeatureName = deviceFeatureNames
@@ -248,7 +329,7 @@ class Chartbox extends Component {
         series.push(serie0);
       } else {
         series = data.map((oneFeature, index) => {
-          const oneUnit = this.props.box.units ? this.props.box.units[index] : this.props.box.unit;
+          const oneUnit = unitsByFeature[index];
           // Convert unit display format if necessary (using 0 as a dummy value since we only need the unit)
           const userUnitPreference = this.props.user.distance_unit_preference;
           const { unit: displayUnit } = checkAndConvertUnit(0, oneUnit, userUnitPreference);
@@ -282,16 +363,14 @@ class Chartbox extends Component {
       };
 
       if (data.length > 0 && this.props.box.chart_type !== 'timeline') {
-        // Before now, there was a "unit" attribute in this box instead of "units",
-        // so we need to support "unit" as some users may already have the box with that param
-        const unit = this.props.box.units ? this.props.box.units[0] : this.props.box.unit;
+        const unit = unitsByFeature[0];
 
         // Convert distance units if necessary
         const userUnitPreference = this.props.user.distance_unit_preference;
         let displayUnit = unit;
 
         // We check if all deviceFeatures selected are in the same unit
-        const allUnitsAreSame = this.props.box.units ? allEqual(this.props.box.units) : false;
+        const allUnitsAreSame = this.props.box.units ? allEqual(unitsByFeature) : false;
 
         // If all deviceFeatures selected are in the same unit
         // We do a average of all values
@@ -372,6 +451,7 @@ class Chartbox extends Component {
   };
   updateDeviceStateWebsocket = payload => {
     if (
+      this.state.offset === 0 &&
       this.state.interval === intervalByName['last-hour'] &&
       this.props.box.device_features &&
       this.props.box.device_features.includes(payload.device_feature_selector)
@@ -381,7 +461,8 @@ class Chartbox extends Component {
   };
   updateInterval = async () => {
     await this.setState({
-      interval: intervalByName[this.props.box.interval]
+      interval: intervalByName[this.props.box.interval],
+      offset: 0
     });
   };
   constructor(props) {
@@ -389,6 +470,7 @@ class Chartbox extends Component {
     this.props = props;
     this.state = {
       interval: this.props.box.interval ? intervalByName[this.props.box.interval] : ONE_HOUR_IN_MINUTES,
+      offset: 0,
       loading: true,
       initialized: false,
       height: 'small',
@@ -436,6 +518,7 @@ class Chartbox extends Component {
       variationDownIsPositive,
       lastValueRounded,
       interval,
+      offset,
       emptySeries,
       unit,
       nbFeaturesDisplayed,
@@ -450,25 +533,55 @@ class Chartbox extends Component {
       additionalHeight = 55 * nbFeaturesDisplayed;
     }
     return (
-      <div class={cx('card', { 'loading-border': initialized && loading })}>
+      <div class={cx('card', { 'loading-border': initialized && loading, [style.cardMenuOpen]: dropdown })}>
         <div class="card-body">
-          <div class="d-flex align-items-center">
+          <div class={style.chartHeader}>
             <div class={cx(style.subheader)}>{box.title}</div>
-            <div class={cx(style.msAuto, style.lh1)}>
-              {props.box.chart_type && (
-                <div class="dropdown" ref={this.dropdownRef}>
-                  <a class="dropdown-toggle text-muted text-nowrap" onClick={this.toggleDropdown}>
-                    {interval === ONE_HOUR_IN_MINUTES && <Text id="dashboard.boxes.chart.lastHour" />}
-                    {interval === TWELVE_HOURS_IN_MINUTES && <Text id="dashboard.boxes.chart.lastTwelveHours" />}
-                    {interval === ONE_DAY_IN_MINUTES && <Text id="dashboard.boxes.chart.lastDay" />}
-                    {interval === SEVEN_DAYS_IN_MINUTES && <Text id="dashboard.boxes.chart.lastSevenDays" />}
-                    {interval === THIRTY_DAYS_IN_MINUTES && <Text id="dashboard.boxes.chart.lastThirtyDays" />}
-                    {interval === THREE_MONTHS_IN_MINUTES && <Text id="dashboard.boxes.chart.lastThreeMonths" />}
-                    {interval === ONE_YEAR_IN_MINUTES && <Text id="dashboard.boxes.chart.lastYear" />}
-                  </a>
+            {props.box.chart_type && (
+              <div class={style.chartToolbar}>
+                <button
+                  type="button"
+                  class={style.navButton}
+                  onClick={this.navigateToPreviousPeriod}
+                  title={props.intl.dictionary.dashboard.boxes.chart.previousPeriod}
+                  aria-label={props.intl.dictionary.dashboard.boxes.chart.previousPeriod}
+                >
+                  <i class="fe fe-chevron-left" />
+                </button>
+
+                <div class={style.toolbarBody} ref={this.dropdownRef}>
+                  <button type="button" class={style.intervalButton} onClick={this.toggleDropdown}>
+                    <Text id={INTERVAL_LABELS[interval]} />
+                    <i
+                      class={cx('fe fe-chevron-down', style.intervalChevron, { [style.intervalChevronOpen]: dropdown })}
+                    />
+                  </button>
+
+                  {/* single line next to the period label: the live dot, or —
+                      when browsing the past — an accent pill showing the range,
+                      whose one tap action (the return icon says it) is coming
+                      back to now */}
+                  {offset > 0 ? (
+                    <button
+                      type="button"
+                      class={style.periodRangeButton}
+                      onClick={this.resetToCurrentPeriod}
+                      title={props.intl.dictionary.dashboard.boxes.chart.backToNow}
+                      aria-label={props.intl.dictionary.dashboard.boxes.chart.backToNow}
+                    >
+                      <i class="fe fe-corner-up-left" />
+                      <span class={style.periodRange}>{getPeriodLabel(interval, offset, props.user.language)}</span>
+                    </button>
+                  ) : (
+                    <div class={style.periodLive}>
+                      <span class={style.liveDot} />
+                      <Text id="dashboard.boxes.chart.currentPeriod" />
+                    </div>
+                  )}
+
                   <div
                     class={cx(style.dropdownMenuChart, {
-                      [style.show]: dropdown
+                      [style.dropdownMenuOpen]: dropdown
                     })}
                   >
                     <a
@@ -495,6 +608,16 @@ class Chartbox extends Component {
                     >
                       <Text id="dashboard.boxes.chart.lastDay" />
                     </a>
+                    {props.box.chart_type !== 'timeline' && (
+                      <a
+                        className={cx(style.dropdownItemChart, {
+                          [style.active]: interval === THREE_DAYS_IN_MINUTES
+                        })}
+                        onClick={this.switchTo3DaysView}
+                      >
+                        <Text id="dashboard.boxes.chart.lastThreeDays" />
+                      </a>
+                    )}
                     {props.box.chart_type !== 'timeline' && (
                       <a
                         className={cx(style.dropdownItemChart, {
@@ -537,8 +660,19 @@ class Chartbox extends Component {
                     )}
                   </div>
                 </div>
-              )}
-            </div>
+
+                <button
+                  type="button"
+                  class={style.navButton}
+                  onClick={this.navigateToNextPeriod}
+                  disabled={offset === 0}
+                  title={props.intl.dictionary.dashboard.boxes.chart.nextPeriod}
+                  aria-label={props.intl.dictionary.dashboard.boxes.chart.nextPeriod}
+                >
+                  <i class="fe fe-chevron-right" />
+                </button>
+              </div>
+            )}
           </div>
 
           {props.box.chart_type && (
@@ -680,9 +814,6 @@ class Chartbox extends Component {
                     <div>
                       <i class="fe fe-alert-circle mr-2" />
                       <Text id="dashboard.boxes.chart.noValue" />
-                    </div>
-                    <div class={style.smallTextEmptyState}>
-                      <Text id="dashboard.boxes.chart.noValueWarning" />
                     </div>
                   </div>
                 )}

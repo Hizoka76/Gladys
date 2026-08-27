@@ -1,8 +1,11 @@
 const { expect } = require('chai');
-const { stub, fake } = require('sinon');
+const sinon = require('sinon').createSandbox();
+
+const { stub, fake } = sinon;
 const nock = require('nock');
 const dns = require('dns');
-const { SYSTEM_VARIABLE_NAMES, COVER_STATE } = require('../../../../utils/constants');
+const { SYSTEM_VARIABLE_NAMES, COVER_STATE, AI_CHAT_TOOL_CATEGORIES } = require('../../../../utils/constants');
+const { ServiceNotConfiguredError } = require('../../../../utils/coreErrors');
 const {
   getAllResources,
   getAllTools,
@@ -12,8 +15,10 @@ const {
 const {
   isSensorFeature,
   isSwitchableFeature,
+  isLightControlFeature,
   isShutterFeature,
   isHistoryFeature,
+  isBatteryFeature,
   isWritableSensorFeature,
 } = require('../../../../services/mcp/lib/selectFeature');
 const { findBySimilarity } = require('../../../../services/mcp/lib/findBySimilarity');
@@ -118,8 +123,10 @@ describe('build schemas', () => {
       getAllResources,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       gladys: {
         room: {
@@ -259,8 +266,10 @@ describe('build schemas', () => {
       getAllResources,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       gladys: {
         room: { getAll: stub().resolves(rooms) },
@@ -367,8 +376,10 @@ describe('build schemas', () => {
       getAllResources,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       gladys: {
         room: {
@@ -481,8 +492,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().callsFake((feature) => ({
         value: feature.last_value,
@@ -567,6 +580,32 @@ describe('build schemas', () => {
     };
 
     const tools = await mcpHandler.getAllTools();
+
+    // AI chat router categories: exact mapping for every exposed tool.
+    const categoriesByIntent = Object.fromEntries(tools.map((tool) => [tool.intent, tool.config.categories]));
+    expect(categoriesByIntent).to.deep.equal({
+      'camera.get-image': [AI_CHAT_TOOL_CATEGORIES.DEVICE_QUERY, AI_CHAT_TOOL_CATEGORIES.OTHER],
+      'scene.create': [AI_CHAT_TOOL_CATEGORIES.SCENES],
+      'scene.start': [
+        AI_CHAT_TOOL_CATEGORIES.SCENES,
+        AI_CHAT_TOOL_CATEGORIES.DEVICE_CONTROL,
+        AI_CHAT_TOOL_CATEGORIES.OTHER,
+      ],
+      'device.get-state': [
+        AI_CHAT_TOOL_CATEGORIES.SCENES,
+        AI_CHAT_TOOL_CATEGORIES.DEVICE_CONTROL,
+        AI_CHAT_TOOL_CATEGORIES.DEVICE_QUERY,
+        AI_CHAT_TOOL_CATEGORIES.OTHER,
+      ],
+      'device.turn-on-off': [AI_CHAT_TOOL_CATEGORIES.DEVICE_CONTROL, AI_CHAT_TOOL_CATEGORIES.OTHER],
+      'device.get-history': [AI_CHAT_TOOL_CATEGORIES.DEVICE_QUERY, AI_CHAT_TOOL_CATEGORIES.OTHER],
+      'web.fetch': [AI_CHAT_TOOL_CATEGORIES.WEB_AND_TIME, AI_CHAT_TOOL_CATEGORIES.OTHER],
+      'time.compare-times': [
+        AI_CHAT_TOOL_CATEGORIES.WEB_AND_TIME,
+        AI_CHAT_TOOL_CATEGORIES.SCENES,
+        AI_CHAT_TOOL_CATEGORIES.OTHER,
+      ],
+    });
 
     // Tool: camera.get-image
     expect(tools[0].intent).to.eq('camera.get-image');
@@ -952,8 +991,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().callsFake((feature) => ({
         value: feature.last_value,
@@ -1021,14 +1062,1061 @@ describe('build schemas', () => {
     expect(turnOnResult.content[0].text).to.eq('device.turn-on command sent for Light Without Room');
   });
 
+  it('should expose device.get-energy-consumption for energy monitoring devices', async () => {
+    const rooms = [{ id: 'room-1', name: 'Salon', selector: 'salon' }];
+
+    const devices = [
+      {
+        selector: 'prise-onduleur',
+        name: 'Prise onduleur',
+        room: { selector: 'salon', name: 'Salon' },
+        features: [
+          {
+            id: 'feature-consumption',
+            selector: 'prise-onduleur-thirty-minutes-consumption',
+            name: 'Consommation',
+            category: 'energy-sensor',
+            type: 'thirty-minutes-consumption',
+            unit: 'watt-hour',
+            keep_history: true,
+          },
+          {
+            id: 'feature-cost',
+            selector: 'prise-onduleur-thirty-minutes-consumption-cost',
+            name: 'Coût',
+            category: 'energy-sensor',
+            type: 'thirty-minutes-consumption-cost',
+            unit: 'euro',
+            energy_parent_id: 'feature-consumption',
+            keep_history: true,
+          },
+        ],
+      },
+      {
+        selector: 'prise-tele',
+        name: 'Prise télé',
+        room: { selector: 'salon', name: 'Salon' },
+        features: [
+          {
+            id: 'feature-tele-consumption',
+            selector: 'prise-tele-thirty-minutes-consumption',
+            name: 'Consommation',
+            category: 'energy-sensor',
+            type: 'thirty-minutes-consumption',
+            unit: 'watt-hour',
+            keep_history: true,
+          },
+        ],
+      },
+    ];
+
+    const getConsumptionByDates = stub().resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [
+          { created_at: new Date('2026-07-11T22:00:00.000Z'), value: 0.05, sum_value: 2.345678, count_value: 48 },
+        ],
+      },
+    ]);
+
+    const mcpHandler = {
+      serviceId: '7056e3d4-31cc-4d2a-bbdd-128cd49755e6',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      formatValue: stub().callsFake((feature) => ({
+        value: feature.last_value,
+        unit: feature.unit,
+      })),
+      findBySimilarity,
+      gladys: {
+        room: {
+          getAll: stub().resolves(rooms),
+        },
+        user: {
+          get: stub().resolves([{ id: 'user-1', name: 'John', selector: 'john' }]),
+        },
+        house: {
+          get: stub().resolves([{ id: 'house-1', name: 'Main house', selector: 'main-house' }]),
+        },
+        variable: {
+          getValue: stub().callsFake((name) =>
+            Promise.resolve(name === SYSTEM_VARIABLE_NAMES.TIMEZONE ? 'Europe/Paris' : null),
+          ),
+        },
+        calendar: {
+          get: stub().resolves([]),
+        },
+        area: {
+          get: stub().resolves([]),
+        },
+        scene: {
+          get: stub().resolves([]),
+          create: stub(),
+        },
+        device: {
+          get: stub().resolves(devices),
+          getBySelector: stub().callsFake((selector) => {
+            return Promise.resolve(devices.find((d) => d.selector === selector));
+          }),
+          setValue: stub().resolves(),
+          energySensorManager: {
+            getConsumptionByDates,
+          },
+          camera: {
+            getImagesInRoom: stub().resolves([]),
+          },
+        },
+        event: {
+          emit: fake(),
+        },
+      },
+      levenshtein: {
+        distance: stub().returns(4),
+      },
+      toon: stub().returns('toonmockdata'),
+    };
+
+    const tools = await mcpHandler.getAllTools();
+    const energyTool = tools.find((tool) => tool.intent === 'device.get-energy-consumption');
+
+    expect(energyTool).to.not.eq(undefined);
+    expect(energyTool.config.categories).to.deep.equal([
+      AI_CHAT_TOOL_CATEGORIES.DEVICE_QUERY,
+      AI_CHAT_TOOL_CATEGORIES.OTHER,
+    ]);
+
+    // Consumption in kWh for a single day: uses the consumption feature.
+    const kwhResult = await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-07-12',
+      end_date: '2026-07-12',
+      unit: 'kwh',
+    });
+    expect(getConsumptionByDates.callCount).to.eq(1);
+    expect(getConsumptionByDates.firstCall.args[0]).to.deep.equal(['prise-onduleur-thirty-minutes-consumption']);
+    expect(getConsumptionByDates.firstCall.args[1]).to.deep.equal({
+      from: new Date(2026, 6, 12),
+      to: new Date(2026, 6, 13),
+      group_by: 'day',
+      display_mode: 'kwh',
+    });
+    expect(kwhResult.content[0].text).to.eq('toonmockdata');
+    expect(mcpHandler.toon.lastCall.args[0]).to.deep.equal({
+      device: 'Prise onduleur',
+      feature: 'Consommation',
+      unit: 'kWh',
+      start_date: '2026-07-12',
+      end_date: '2026-07-12',
+      group_by: 'day',
+      timezone: 'Europe/Paris',
+      total: 2.346,
+      values: [{ date: '2026-07-12', value: 2.346 }],
+    });
+
+    // Cost in currency for a full month: uses the cost feature and includes the
+    // home subscription as a separate entry.
+    getConsumptionByDates.resetHistory();
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Abonnement',
+          currency_unit: 'euro',
+          is_subscription: true,
+        },
+        values: [
+          { created_at: new Date('2026-05-31T22:00:00.000Z'), value: 0.42, sum_value: 0.42 },
+          { created_at: new Date('2026-06-01T22:00:00.000Z'), value: 0.42, sum_value: 0.42 },
+        ],
+      },
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Coût',
+          selector: 'prise-onduleur-thirty-minutes-consumption-cost',
+          currency_unit: 'euro',
+        },
+        values: [
+          { created_at: new Date('2026-05-31T22:00:00.000Z'), value: 0.1, sum_value: 1.234567 },
+          { created_at: new Date('2026-06-01T22:00:00.000Z'), value: 0.1, sum_value: 2.1 },
+        ],
+      },
+    ]);
+
+    const currencyResult = await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-06-01',
+      end_date: '2026-06-30',
+      unit: 'currency',
+    });
+    expect(getConsumptionByDates.callCount).to.eq(1);
+    expect(getConsumptionByDates.firstCall.args[0]).to.deep.equal(['prise-onduleur-thirty-minutes-consumption-cost']);
+    expect(getConsumptionByDates.firstCall.args[1]).to.deep.equal({
+      from: new Date(2026, 5, 1),
+      to: new Date(2026, 6, 1),
+      group_by: 'day',
+      display_mode: 'currency',
+    });
+    expect(currencyResult.content[0].text).to.eq('toonmockdata');
+    expect(mcpHandler.toon.lastCall.args[0]).to.deep.equal({
+      device: 'Prise onduleur',
+      feature: 'Coût',
+      unit: 'euro',
+      start_date: '2026-06-01',
+      end_date: '2026-06-30',
+      group_by: 'day',
+      timezone: 'Europe/Paris',
+      total: 3.33,
+      values: [
+        { date: '2026-06-01', value: 1.23 },
+        { date: '2026-06-02', value: 2.1 },
+      ],
+      home_subscription: {
+        name: 'Abonnement',
+        total: 0.84,
+      },
+    });
+
+    // Cost on a device without cost tracking configured.
+    getConsumptionByDates.resetHistory();
+    const noCostResult = await energyTool.cb({
+      device: 'Prise télé',
+      start_date: '2026-06-01',
+      end_date: '2026-06-30',
+      unit: 'currency',
+    });
+    expect(getConsumptionByDates.callCount).to.eq(0);
+    expect(noCostResult.content[0].text).to.contain('no consumption cost tracking configured on Prise télé');
+
+    // Empty period: adds an explicit note.
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise télé' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-tele-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [],
+      },
+    ]);
+    const emptyResult = await energyTool.cb({
+      device: 'Prise télé',
+      start_date: '2026-07-12',
+      end_date: '2026-07-12',
+      unit: 'kwh',
+    });
+    expect(emptyResult.content[0].text).to.eq('toonmockdata');
+    expect(mcpHandler.toon.lastCall.args[0].total).to.eq(0);
+    expect(mcpHandler.toon.lastCall.args[0].note).to.eq(
+      'No consumption data recorded for this device over this period.',
+    );
+
+    // Unknown device.
+    const unknownDeviceResult = await energyTool.cb({
+      device: 'Unknown device',
+      start_date: '2026-07-12',
+      end_date: '2026-07-12',
+      unit: 'kwh',
+    });
+    expect(unknownDeviceResult.content[0].text).to.eq(
+      'device.get-energy-consumption: no energy monitoring device found matching "Unknown device"',
+    );
+
+    // Invalid dates.
+    const invalidDateResult = await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '12/07/2026',
+      end_date: '2026-07-12',
+      unit: 'kwh',
+    });
+    expect(invalidDateResult.content[0].text).to.eq(
+      'device.get-energy-consumption: start_date and end_date must be in YYYY-MM-DD format, ' +
+        'with a month between 01 and 12 and a day between 01 and 31',
+    );
+
+    // Out-of-range month and day are still rejected.
+    const invalidMonthResult = await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-13-01',
+      end_date: '2026-13-31',
+      unit: 'kwh',
+    });
+    expect(invalidMonthResult.content[0].text).to.contain('must be in YYYY-MM-DD format');
+    const invalidDayResult = await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-07-00',
+      end_date: '2026-07-32',
+      unit: 'kwh',
+    });
+    expect(invalidDayResult.content[0].text).to.contain('must be in YYYY-MM-DD format');
+
+    // February 29th on a non-leap year: the model means "end of February", the day
+    // is clamped to the last day of the month instead of failing the whole call.
+    getConsumptionByDates.resetHistory();
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [{ created_at: new Date('2026-01-31T23:00:00.000Z'), value: 12, sum_value: 12 }],
+      },
+    ]);
+    const clampedFebruaryResult = await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-02-01',
+      end_date: '2026-02-29',
+      unit: 'kwh',
+      group_by: 'month',
+    });
+    expect(getConsumptionByDates.callCount).to.eq(1);
+    expect(getConsumptionByDates.firstCall.args[1]).to.deep.equal({
+      from: new Date(2026, 1, 1),
+      to: new Date(2026, 2, 1),
+      group_by: 'month',
+      display_mode: 'kwh',
+    });
+    expect(clampedFebruaryResult.content[0].text).to.eq('toonmockdata');
+    // The effective period is echoed back, not the out-of-range input.
+    expect(mcpHandler.toon.lastCall.args[0].start_date).to.eq('2026-02-01');
+    expect(mcpHandler.toon.lastCall.args[0].end_date).to.eq('2026-02-28');
+    expect(mcpHandler.toon.lastCall.args[0].values).to.deep.equal([{ date: '2026-02', value: 12 }]);
+
+    // A whole year grouped by month: the buckets are local midnight, and serializing
+    // them as UTC instants labelled every month one month early east of Greenwich.
+    getConsumptionByDates.resetHistory();
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [
+          { created_at: new Date('2025-12-31T23:00:00.000Z'), value: 1, sum_value: 118.247 },
+          { created_at: new Date('2026-01-31T23:00:00.000Z'), value: 1, sum_value: 121.17 },
+          { created_at: new Date('2026-02-28T23:00:00.000Z'), value: 1, sum_value: 126.954 },
+        ],
+      },
+    ]);
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+      unit: 'kwh',
+      group_by: 'month',
+    });
+    expect(mcpHandler.toon.lastCall.args[0].values).to.deep.equal([
+      { date: '2026-01', value: 118.247 },
+      { date: '2026-02', value: 121.17 },
+      { date: '2026-03', value: 126.954 },
+    ]);
+
+    // Hour and year grouping report their own granularity.
+    getConsumptionByDates.resetHistory();
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [{ created_at: new Date('2026-07-12T06:00:00.000Z'), value: 1, sum_value: 0.5 }],
+      },
+    ]);
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-07-12',
+      end_date: '2026-07-12',
+      unit: 'kwh',
+      group_by: 'hour',
+    });
+    expect(mcpHandler.toon.lastCall.args[0].values).to.deep.equal([{ date: '2026-07-12 08:00+02:00', value: 0.5 }]);
+
+    // Night a timezone falls back: both buckets are 02:00 on the Paris clock, so the
+    // offset is what keeps them from collapsing into one duplicated date.
+    getConsumptionByDates.resetHistory();
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [
+          { created_at: new Date('2025-10-26T00:00:00.000Z'), value: 1, sum_value: 0.3 },
+          { created_at: new Date('2025-10-26T01:00:00.000Z'), value: 1, sum_value: 0.4 },
+        ],
+      },
+    ]);
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2025-10-26',
+      end_date: '2025-10-26',
+      unit: 'kwh',
+      group_by: 'hour',
+    });
+    expect(mcpHandler.toon.lastCall.args[0].values).to.deep.equal([
+      { date: '2025-10-26 02:00+02:00', value: 0.3 },
+      { date: '2025-10-26 02:00+01:00', value: 0.4 },
+    ]);
+
+    // Same night west of Greenwich, where the offset is negative: 01:00 happens twice
+    // in New York too, on 2025-11-02.
+    getConsumptionByDates.resetHistory();
+    mcpHandler.gladys.variable.getValue.resolves('America/New_York');
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [
+          { created_at: new Date('2025-11-02T05:00:00.000Z'), value: 1, sum_value: 0.5 },
+          { created_at: new Date('2025-11-02T06:00:00.000Z'), value: 1, sum_value: 0.6 },
+        ],
+      },
+    ]);
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2025-11-02',
+      end_date: '2025-11-02',
+      unit: 'kwh',
+      group_by: 'hour',
+    });
+    expect(mcpHandler.toon.lastCall.args[0].values).to.deep.equal([
+      { date: '2025-11-02 01:00-04:00', value: 0.5 },
+      { date: '2025-11-02 01:00-05:00', value: 0.6 },
+    ]);
+
+    // A home sitting at UTC: the offset is zero, and still reported as +00:00 so the
+    // hourly format never changes shape. Not read off Intl's timeZoneName, which
+    // spells that case "GMT" on ICU 76 and "GMT+00:00" on ICU 78.
+    mcpHandler.gladys.variable.getValue.resolves('UTC');
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [{ created_at: new Date('2026-01-01T00:00:00.000Z'), value: 1, sum_value: 0.7 }],
+      },
+    ]);
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-01-01',
+      end_date: '2026-01-01',
+      unit: 'kwh',
+      group_by: 'hour',
+    });
+    expect(mcpHandler.toon.lastCall.args[0].timezone).to.eq('UTC');
+    expect(mcpHandler.toon.lastCall.args[0].values).to.deep.equal([{ date: '2026-01-01 00:00+00:00', value: 0.7 }]);
+    mcpHandler.gladys.variable.getValue.callsFake((name) =>
+      Promise.resolve(name === SYSTEM_VARIABLE_NAMES.TIMEZONE ? 'Europe/Paris' : null),
+    );
+
+    getConsumptionByDates.resolves([
+      {
+        device: { name: 'Prise onduleur' },
+        deviceFeature: {
+          name: 'Consommation',
+          selector: 'prise-onduleur-thirty-minutes-consumption',
+          currency_unit: null,
+        },
+        values: [{ created_at: new Date('2025-12-31T23:00:00.000Z'), value: 1, sum_value: 1500 }],
+      },
+    ]);
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+      unit: 'kwh',
+      group_by: 'year',
+    });
+    expect(mcpHandler.toon.lastCall.args[0].values).to.deep.equal([{ date: '2026', value: 1500 }]);
+
+    // No TIMEZONE variable set yet: fall back to the same default the other tools use.
+    mcpHandler.gladys.variable.getValue.resolves(null);
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+      unit: 'kwh',
+      group_by: 'year',
+    });
+    expect(mcpHandler.toon.lastCall.args[0].timezone).to.eq('Europe/Paris');
+    mcpHandler.gladys.variable.getValue.callsFake((name) =>
+      Promise.resolve(name === SYSTEM_VARIABLE_NAMES.TIMEZONE ? 'Europe/Paris' : null),
+    );
+
+    // Same clamping on a leap year keeps February 29th, and on a 30-day month.
+    getConsumptionByDates.resetHistory();
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2024-02-29',
+      end_date: '2024-04-31',
+      unit: 'kwh',
+    });
+    expect(getConsumptionByDates.firstCall.args[1]).to.deep.include({
+      from: new Date(2024, 1, 29),
+      to: new Date(2024, 4, 1),
+    });
+    expect(mcpHandler.toon.lastCall.args[0].start_date).to.eq('2024-02-29');
+    expect(mcpHandler.toon.lastCall.args[0].end_date).to.eq('2024-04-30');
+
+    // Years below 0100 keep their century: new Date(year, ...) would map them to
+    // 1900-1999 and query a period two millennia away from the one asked for.
+    getConsumptionByDates.resetHistory();
+    await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '0000-02-29',
+      end_date: '0000-03-01',
+      unit: 'kwh',
+    });
+    const expectedYearZeroFrom = new Date(2000, 0, 1);
+    expectedYearZeroFrom.setFullYear(0, 1, 29);
+    const expectedYearZeroTo = new Date(2000, 0, 1);
+    expectedYearZeroTo.setFullYear(0, 2, 2);
+    expect(getConsumptionByDates.firstCall.args[1]).to.deep.include({
+      from: expectedYearZeroFrom,
+      to: expectedYearZeroTo,
+    });
+    expect(getConsumptionByDates.firstCall.args[1].from.getFullYear()).to.eq(0);
+    expect(mcpHandler.toon.lastCall.args[0].start_date).to.eq('0000-02-29');
+
+    getConsumptionByDates.resetHistory();
+    const reversedDatesResult = await energyTool.cb({
+      device: 'Prise onduleur',
+      start_date: '2026-07-12',
+      end_date: '2026-07-10',
+      unit: 'kwh',
+    });
+    expect(reversedDatesResult.content[0].text).to.eq(
+      'device.get-energy-consumption: start_date must be before or equal to end_date',
+    );
+  });
+
+  it('should not expose device.get-energy-consumption without energy monitoring devices', async () => {
+    const mcpHandler = {
+      serviceId: '7056e3d4-31cc-4d2a-bbdd-128cd49755e6',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      findBySimilarity,
+      gladys: {
+        room: {
+          getAll: stub().resolves([{ id: 'room-1', name: 'Salon', selector: 'salon' }]),
+        },
+        user: {
+          get: stub().resolves([]),
+        },
+        house: {
+          get: stub().resolves([]),
+        },
+        calendar: {
+          get: stub().resolves([]),
+        },
+        area: {
+          get: stub().resolves([]),
+        },
+        scene: {
+          get: stub().resolves([]),
+          create: stub(),
+        },
+        device: {
+          get: stub().resolves([
+            {
+              selector: 'device-temp-1',
+              name: 'Temperature Sensor',
+              room: { selector: 'salon', name: 'Salon' },
+              features: [
+                {
+                  id: 1,
+                  selector: 'device-temp-1-temp',
+                  name: 'Temperature',
+                  category: 'temperature-sensor',
+                  type: 'decimal',
+                },
+              ],
+            },
+          ]),
+        },
+        event: {
+          emit: fake(),
+        },
+      },
+      levenshtein: {
+        distance: stub().returns(4),
+      },
+      toon: stub().returns('toonmockdata'),
+    };
+
+    const tools = await mcpHandler.getAllTools();
+    expect(tools.find((tool) => tool.intent === 'device.get-energy-consumption')).to.eq(undefined);
+  });
+
+  const buildBatteryMcpHandler = (extraDevices = []) => {
+    const rooms = [
+      { id: 'room-1', name: 'Salon', selector: 'salon', house_id: 'house-1' },
+      { id: 'room-2', name: 'Chambre', selector: 'chambre', house_id: 'house-1' },
+      { id: 'room-3', name: 'Cuisine', selector: 'cuisine', house_id: 'house-1' },
+    ];
+
+    const devices = [
+      {
+        selector: 'capteur-temperature-salon',
+        name: 'Capteur température salon',
+        room: { selector: 'salon', name: 'Salon' },
+        features: [
+          {
+            id: 'feature-temperature-salon',
+            selector: 'capteur-temperature-salon-temperature',
+            name: 'Température',
+            category: 'temperature-sensor',
+            type: 'decimal',
+            last_value: 22.5,
+            unit: 'celsius',
+          },
+          {
+            id: 'feature-battery-temperature-salon',
+            selector: 'capteur-temperature-salon-battery',
+            name: 'Batterie',
+            category: 'battery',
+            type: 'integer',
+            last_value: 87,
+            unit: 'percent',
+          },
+        ],
+      },
+      {
+        selector: 'capteur-porte-chambre',
+        name: 'Capteur porte chambre',
+        room: { selector: 'chambre', name: 'Chambre' },
+        features: [
+          {
+            id: 'feature-battery-porte-chambre',
+            selector: 'capteur-porte-chambre-battery',
+            name: 'Batterie',
+            category: 'battery',
+            type: 'integer',
+            last_value: 12,
+            unit: 'percent',
+          },
+        ],
+      },
+      {
+        selector: 'detecteur-fumee',
+        name: 'Détecteur de fumée',
+        features: [
+          {
+            id: 'feature-battery-detecteur-fumee',
+            selector: 'detecteur-fumee-battery',
+            name: 'Batterie',
+            category: 'battery',
+            type: 'integer',
+            last_value: null,
+            unit: 'percent',
+          },
+        ],
+      },
+      {
+        selector: 'telecommande-chambre',
+        name: 'Télécommande chambre',
+        room: { selector: 'chambre', name: 'Chambre' },
+        features: [
+          {
+            id: 'feature-battery-telecommande',
+            selector: 'telecommande-chambre-battery',
+            name: 'Batterie',
+            category: 'battery',
+            type: 'integer',
+            last_value: null,
+            unit: 'percent',
+          },
+        ],
+      },
+      {
+        selector: 'capteur-humidite-salon',
+        name: 'Capteur humidité salon',
+        room: { selector: 'salon', name: 'Salon' },
+        features: [
+          {
+            id: 'feature-battery-humidite-salon',
+            selector: 'capteur-humidite-salon-battery',
+            name: 'Batterie',
+            category: 'battery',
+            type: 'integer',
+            last_value: 50,
+            unit: 'percent',
+          },
+        ],
+      },
+      {
+        selector: 'lampe-cuisine',
+        name: 'Lampe cuisine',
+        room: { selector: 'cuisine', name: 'Cuisine' },
+        features: [
+          {
+            id: 'feature-lampe-cuisine',
+            selector: 'lampe-cuisine-binary',
+            name: 'On/Off',
+            category: 'light',
+            type: 'binary',
+            last_value: 1,
+          },
+        ],
+      },
+      ...extraDevices,
+    ];
+
+    return {
+      serviceId: '7056e3d4-31cc-4d2a-bbdd-128cd49755e6',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      formatValue: stub().callsFake((feature) => ({
+        value: feature.last_value,
+        unit: feature.unit,
+        age: '5min',
+      })),
+      findBySimilarity,
+      gladys: {
+        room: { getAll: stub().resolves(rooms) },
+        user: { get: stub().resolves([]) },
+        house: { get: stub().resolves([]) },
+        calendar: { get: stub().resolves([]) },
+        area: { get: stub().resolves([]) },
+        scene: { get: stub().resolves([]), create: stub() },
+        variable: { getValue: stub().resolves(null) },
+        device: {
+          get: stub().resolves(devices),
+          getBySelector: stub().callsFake((selector) => Promise.resolve(devices.find((d) => d.selector === selector))),
+          setValue: stub().resolves(),
+          camera: { getImagesInRoom: stub().resolves([]) },
+        },
+        event: { emit: fake() },
+      },
+      // A distance above the similarity threshold: only exact names match.
+      levenshtein: { distance: stub().returns(4) },
+      toon: stub().returns('toonmockdata'),
+    };
+  };
+
+  it('should expose device.get-battery-levels sorted from the lowest battery level', async () => {
+    const mcpHandler = buildBatteryMcpHandler();
+
+    const tools = await mcpHandler.getAllTools();
+    const batteryTool = tools.find((tool) => tool.intent === 'device.get-battery-levels');
+
+    expect(batteryTool).to.not.eq(undefined);
+    expect(batteryTool.config.title).to.eq('Get battery levels of devices');
+    expect(batteryTool.config.categories).to.deep.equal([
+      AI_CHAT_TOOL_CATEGORIES.DEVICE_QUERY,
+      AI_CHAT_TOOL_CATEGORIES.OTHER,
+    ]);
+
+    const batteryApiTool = mcpToolsToChatApiFormat(tools).find(
+      (tool) => tool.function.name === 'device_get_battery_levels',
+    );
+    expect(batteryApiTool.function.parameters.required).to.eq(undefined);
+    expect(batteryApiTool.function.parameters.properties.device.enum).to.deep.equal([
+      'Capteur température salon',
+      'Capteur porte chambre',
+      'Détecteur de fumée',
+      'Télécommande chambre',
+      'Capteur humidité salon',
+    ]);
+
+    // "donne moi l'état en % de toutes les piles": the whole home, lowest battery first,
+    // and the devices that never reported a level at the end.
+    const allBatteriesResult = await batteryTool.cb({});
+    expect(allBatteriesResult.content[0].text).to.eq('toonmockdata');
+    // No battery warning threshold configured in this instance: no threshold is
+    // exposed, and no level is flagged as below it.
+    expect(Object.keys(mcpHandler.toon.firstCall.args[0])).to.deep.equal(['batteries']);
+    expect(mcpHandler.toon.firstCall.args[0].batteries).to.deep.equal([
+      {
+        room: 'Chambre',
+        device: 'Capteur porte chambre',
+        feature: 'Batterie',
+        category: 'battery',
+        value: 12,
+        unit: 'percent',
+        age: '5min',
+      },
+      {
+        room: 'Salon',
+        device: 'Capteur humidité salon',
+        feature: 'Batterie',
+        category: 'battery',
+        value: 50,
+        unit: 'percent',
+        age: '5min',
+      },
+      {
+        room: 'Salon',
+        device: 'Capteur température salon',
+        feature: 'Batterie',
+        category: 'battery',
+        value: 87,
+        unit: 'percent',
+        age: '5min',
+      },
+      {
+        room: 'No room',
+        device: 'Détecteur de fumée',
+        feature: 'Batterie',
+        category: 'battery',
+        value: null,
+        unit: 'percent',
+        age: '5min',
+      },
+      {
+        room: 'Chambre',
+        device: 'Télécommande chambre',
+        feature: 'Batterie',
+        category: 'battery',
+        value: null,
+        unit: 'percent',
+        age: '5min',
+      },
+    ]);
+  });
+
+  it('should filter device.get-battery-levels by device and by room', async () => {
+    const mcpHandler = buildBatteryMcpHandler();
+
+    const tools = await mcpHandler.getAllTools();
+    const batteryTool = tools.find((tool) => tool.intent === 'device.get-battery-levels');
+
+    // "quel est l'état de la pile du capteur température salon"
+    const singleDeviceResult = await batteryTool.cb({ device: 'Capteur température salon' });
+    expect(singleDeviceResult.content[0].text).to.eq('toonmockdata');
+    expect(mcpHandler.toon.firstCall.args[0].batteries).to.deep.equal([
+      {
+        room: 'Salon',
+        device: 'Capteur température salon',
+        feature: 'Batterie',
+        category: 'battery',
+        value: 87,
+        unit: 'percent',
+        age: '5min',
+      },
+    ]);
+
+    mcpHandler.toon.resetHistory();
+
+    const roomResult = await batteryTool.cb({ room: 'Chambre' });
+    expect(roomResult.content[0].text).to.eq('toonmockdata');
+    expect(mcpHandler.toon.firstCall.args[0].batteries.map(({ device, value }) => ({ device, value }))).to.deep.equal([
+      { device: 'Capteur porte chambre', value: 12 },
+      { device: 'Télécommande chambre', value: null },
+    ]);
+  });
+
+  it('should read device.get-battery-levels of a whole house passed as a room', async () => {
+    const mcpHandler = buildBatteryMcpHandler();
+    // The chat gateway calls the tool with the raw arguments of the model, which is not
+    // bound by the room enum: "l'état des piles de la maison" passes the house name.
+    mcpHandler.gladys.house.get = stub().resolves([{ id: 'house-1', name: 'Maison', selector: 'maison' }]);
+
+    const tools = await mcpHandler.getAllTools();
+    const batteryTool = tools.find((tool) => tool.intent === 'device.get-battery-levels');
+
+    const houseResult = await batteryTool.cb({ room: 'Maison' });
+    expect(houseResult.content[0].text).to.eq('toonmockdata');
+    // Every battery of the rooms of that house, plus the device without a room.
+    expect(mcpHandler.toon.firstCall.args[0].batteries.map(({ device }) => device)).to.deep.equal([
+      'Capteur porte chambre',
+      'Capteur humidité salon',
+      'Capteur température salon',
+      'Détecteur de fumée',
+      'Télécommande chambre',
+    ]);
+  });
+
+  it('should flag device.get-battery-levels levels below the battery warning threshold', async () => {
+    const mcpHandler = buildBatteryMcpHandler();
+    mcpHandler.gladys.variable.getValue = stub().resolves('20');
+
+    const tools = await mcpHandler.getAllTools();
+    const batteryTool = tools.find((tool) => tool.intent === 'device.get-battery-levels');
+
+    const allBatteriesResult = await batteryTool.cb({});
+    expect(allBatteriesResult.content[0].text).to.eq('toonmockdata');
+    expect(mcpHandler.gladys.variable.getValue.firstCall.args[0]).to.eq('DEVICE_BATTERY_LEVEL_WARNING_THRESHOLD');
+    expect(mcpHandler.toon.firstCall.args[0].warning_threshold).to.eq(20);
+    // A device that never reported a level is neither below nor above the threshold.
+    expect(
+      mcpHandler.toon.firstCall.args[0].batteries.map(({ device, value, below_warning_threshold: below }) => ({
+        device,
+        value,
+        below,
+      })),
+    ).to.deep.equal([
+      { device: 'Capteur porte chambre', value: 12, below: true },
+      { device: 'Capteur humidité salon', value: 50, below: false },
+      { device: 'Capteur température salon', value: 87, below: false },
+      { device: 'Détecteur de fumée', value: null, below: undefined },
+      { device: 'Télécommande chambre', value: null, below: undefined },
+    ]);
+  });
+
+  it('should not compare a device.get-battery-levels level published in another unit to the threshold', async () => {
+    const mcpHandler = buildBatteryMcpHandler([
+      {
+        selector: 'capteur-jardin',
+        name: 'Capteur jardin',
+        room: { selector: 'salon', name: 'Salon' },
+        features: [
+          {
+            id: 'feature-battery-jardin',
+            selector: 'capteur-jardin-battery',
+            name: 'Batterie',
+            category: 'battery',
+            type: 'integer',
+            last_value: 3.1,
+            unit: 'volt',
+          },
+        ],
+      },
+      {
+        selector: 'capteur-cave',
+        name: 'Capteur cave',
+        features: [
+          {
+            id: 'feature-battery-cave',
+            selector: 'capteur-cave-battery',
+            name: 'Batterie',
+            category: 'battery',
+            type: 'integer',
+            last_value: 4,
+            unit: null,
+          },
+        ],
+      },
+    ]);
+    mcpHandler.gladys.variable.getValue = stub().resolves('20');
+
+    const tools = await mcpHandler.getAllTools();
+    const batteryTool = tools.find((tool) => tool.intent === 'device.get-battery-levels');
+
+    const allBatteriesResult = await batteryTool.cb({});
+    expect(allBatteriesResult.content[0].text).to.eq('toonmockdata');
+    expect(mcpHandler.toon.firstCall.args[0].warning_threshold).to.eq(20);
+    // The threshold is a percentage: a level published in volts, or without a unit at
+    // all, is reported with its unit but never flagged as low.
+    expect(
+      mcpHandler.toon.firstCall.args[0].batteries
+        .filter(({ device }) => ['Capteur jardin', 'Capteur cave'].includes(device))
+        .map(({ device, value, unit, below_warning_threshold: below }) => ({ device, value, unit, below })),
+    ).to.deep.equal([
+      { device: 'Capteur jardin', value: 3.1, unit: 'volt', below: undefined },
+      { device: 'Capteur cave', value: 4, unit: null, below: undefined },
+    ]);
+    // The percent levels are still compared to it.
+    expect(
+      mcpHandler.toon.firstCall.args[0].batteries.find(({ device }) => device === 'Capteur porte chambre')
+        .below_warning_threshold,
+    ).to.eq(true);
+  });
+
+  it('should tell device.get-battery-levels when the room or the device is unknown', async () => {
+    const mcpHandler = buildBatteryMcpHandler();
+
+    const tools = await mcpHandler.getAllTools();
+    const batteryTool = tools.find((tool) => tool.intent === 'device.get-battery-levels');
+
+    const unknownRoomResult = await batteryTool.cb({ room: 'Garage' });
+    expect(mcpHandler.gladys.device.getBySelector.callCount).to.eq(0);
+    expect(unknownRoomResult.content[0].text).to.eq(
+      'device.get-battery-levels: "Garage" is not a room of this home, no battery level was read. ' +
+        'Available rooms: Salon, Chambre, Cuisine. ' +
+        'Call this tool again with one of them, or without the room parameter to cover the whole home.',
+    );
+
+    const unknownDeviceResult = await batteryTool.cb({ room: 'Salon', device: 'Capteur inconnu' });
+    expect(mcpHandler.gladys.device.getBySelector.callCount).to.eq(0);
+    expect(unknownDeviceResult.content[0].text).to.eq(
+      'device.get-battery-levels: no device reporting a battery level matches "Capteur inconnu" in room "Salon". ' +
+        'Devices reporting a battery level: Capteur température salon, Capteur porte chambre, Détecteur de fumée, ' +
+        'Télécommande chambre, Capteur humidité salon. ' +
+        'Do not report a battery level for a device that is absent from this list.',
+    );
+
+    const emptyRoomResult = await batteryTool.cb({ room: 'Cuisine' });
+    expect(mcpHandler.gladys.device.getBySelector.callCount).to.eq(0);
+    expect(emptyRoomResult.content[0].text).to.eq(
+      'device.get-battery-levels: no device reporting a battery level is configured in room "Cuisine". ' +
+        'No battery level exists for this query, do not report any value.',
+    );
+  });
+
+  it('should not expose device.get-battery-levels without battery powered devices', async () => {
+    const mcpHandler = buildBatteryMcpHandler();
+    mcpHandler.gladys.device.get = stub().resolves([
+      {
+        selector: 'lampe-cuisine',
+        name: 'Lampe cuisine',
+        room: { selector: 'cuisine', name: 'Cuisine' },
+        features: [
+          {
+            id: 'feature-lampe-cuisine',
+            selector: 'lampe-cuisine-binary',
+            name: 'On/Off',
+            category: 'light',
+            type: 'binary',
+            last_value: 1,
+          },
+        ],
+      },
+    ]);
+
+    const tools = await mcpHandler.getAllTools();
+    expect(tools.find((tool) => tool.intent === 'device.get-battery-levels')).to.eq(undefined);
+  });
+
   it('should return detailed scene.create errors for SequelizeValidationError and unknown errors', async () => {
     const mcpHandler = {
       serviceId: '7056e3d4-31cc-4d2a-bbdd-128cd49755e6',
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().callsFake((feature) => ({
         value: feature.last_value,
@@ -1140,8 +2228,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().callsFake((feature) => ({
         value: feature.last_value,
@@ -1238,8 +2328,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().returns({ value: 1 }),
       findBySimilarity,
@@ -1297,8 +2389,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().callsFake((feature) => ({ value: feature.last_value })),
       findBySimilarity,
@@ -1340,8 +2434,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().returns({ value: 1 }),
       findBySimilarity,
@@ -1450,8 +2546,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -1494,8 +2592,8 @@ describe('build schemas', () => {
     });
     expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
     expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq('AB-123-CD');
-    expect(mcpHandler.gladys.device.saveStringState.callCount).to.eq(1);
-    expect(mcpHandler.gladys.device.saveStringState.firstCall.args[2]).to.eq('AB-123-CD');
+    // device.setValue persists string states of text features itself
+    expect(mcpHandler.gladys.device.saveStringState.callCount).to.eq(0);
     expect(textResult.content[0].text).to.eq('sensor.set-state: set License Plate Sensor / Plate to AB-123-CD');
   });
 
@@ -1522,8 +2620,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -1586,8 +2686,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -1685,8 +2787,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -1757,8 +2861,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -1836,8 +2942,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -1887,8 +2995,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -1954,8 +3064,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -2005,8 +3117,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       findBySimilarity,
       gladys: {
@@ -2036,7 +3150,10 @@ describe('build schemas', () => {
       value: 'AB-123-CD',
     });
 
-    expect(mcpHandler.gladys.device.saveStringState.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq('AB-123-CD');
+    // device.setValue persists string states of text features itself
+    expect(mcpHandler.gladys.device.saveStringState.callCount).to.eq(0);
   });
 
   it('should expose shutters in home schema and device.set-shutter tool', async () => {
@@ -2072,8 +3189,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().callsFake((feature) => ({
         value: feature.last_value,
@@ -2179,8 +3298,10 @@ describe('build schemas', () => {
       getAllResources,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       gladys: {
         room: { getAll: stub().resolves(rooms) },
@@ -2240,8 +3361,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().returns({ value: 0 }),
       findBySimilarity,
@@ -2334,8 +3457,10 @@ describe('build schemas', () => {
       getAllTools,
       isSensorFeature,
       isSwitchableFeature,
+      isLightControlFeature,
       isShutterFeature,
       isHistoryFeature,
+      isBatteryFeature,
       isWritableSensorFeature,
       formatValue: stub().returns({ value: 0 }),
       findBySimilarity,
@@ -2390,5 +3515,847 @@ describe('build schemas', () => {
     expect(partialResult.content[0].text).to.eq(
       'device.set-shutter: open command sent for State Only Shutter; could not dispatch for State Only Shutter (missing position feature)',
     );
+  });
+
+  it('should expose light control features in home schema and device.set-light tool', async () => {
+    const rooms = [{ id: 'room-1', name: 'Salon', selector: 'salon' }];
+    const rgbLightDevice = {
+      selector: 'device-light-rgb',
+      name: 'Living Room Light',
+      room: { selector: 'salon', name: 'Salon' },
+      features: [
+        {
+          id: 1,
+          selector: 'device-light-rgb-binary',
+          name: 'On/Off',
+          category: 'light',
+          type: 'binary',
+          last_value: 1,
+        },
+        {
+          id: 2,
+          selector: 'device-light-rgb-brightness',
+          name: 'Brightness',
+          category: 'light',
+          type: 'brightness',
+          min: 0,
+          max: 254,
+          last_value: 254,
+        },
+        {
+          id: 3,
+          selector: 'device-light-rgb-color',
+          name: 'Color',
+          category: 'light',
+          type: 'color',
+          min: 0,
+          max: 16777215,
+          last_value: 255,
+        },
+        {
+          id: 4,
+          selector: 'device-light-rgb-temperature',
+          name: 'Color temperature',
+          category: 'light',
+          type: 'temperature',
+          min: 153,
+          max: 500,
+          last_value: 250,
+        },
+      ],
+    };
+    const colorStripDevice = {
+      selector: 'device-color-strip',
+      name: 'Color Strip',
+      room: { selector: 'salon', name: 'Salon' },
+      features: [
+        {
+          id: 5,
+          selector: 'device-color-strip-color',
+          name: 'Color',
+          category: 'light',
+          type: 'color',
+          min: 0,
+          max: 16777215,
+          last_value: 65280,
+        },
+      ],
+    };
+    const noRoomLightDevice = {
+      selector: 'device-light-no-room',
+      name: 'No Room Light',
+      room: null,
+      features: [
+        {
+          id: 6,
+          selector: 'device-light-no-room-brightness',
+          name: 'Brightness',
+          category: 'light',
+          type: 'brightness',
+          min: 0,
+          max: 100,
+          last_value: 100,
+        },
+      ],
+    };
+
+    const mcpHandler = {
+      serviceId: 'test',
+      getAllResources,
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      formatValue: stub().callsFake((feature) => ({
+        value: feature.last_value,
+        unit: feature.unit,
+      })),
+      findBySimilarity,
+      gladys: {
+        room: { getAll: stub().resolves(rooms) },
+        user: { get: stub().resolves([]) },
+        house: { get: stub().resolves([]) },
+        calendar: { get: stub().resolves([]) },
+        area: { get: stub().resolves([]) },
+        scene: { get: stub().resolves([]), create: stub().resolves({}) },
+        device: {
+          get: stub().resolves([rgbLightDevice, colorStripDevice, noRoomLightDevice]),
+          getBySelector: stub().callsFake(async (selector) => {
+            return [rgbLightDevice, colorStripDevice, noRoomLightDevice].find((d) => d.selector === selector);
+          }),
+          setValue: stub().resolves(),
+          getDeviceFeaturesAggregates: stub().resolves({ values: [] }),
+          camera: { getImagesInRoom: stub().resolves([]) },
+        },
+        event: { emit: fake() },
+      },
+      levenshtein: { distance: stub().returns(0) },
+      toon: stub().returns('toonmockdata'),
+    };
+
+    const resources = await mcpHandler.getAllResources();
+    const homeSchema = JSON.parse((await resources[0].cb({ href: 'schema://home' })).contents[0].text);
+
+    // Light control features are merged with the existing binary feature of the device.
+    expect(homeSchema.salon.devices['device-light-rgb'].features).to.deep.equal([
+      {
+        name: 'On/Off',
+        selector: 'device-light-rgb-binary',
+        category: 'light',
+        type: 'binary',
+        access: ['write', 'read'],
+      },
+      {
+        name: 'Brightness',
+        selector: 'device-light-rgb-brightness',
+        category: 'light',
+        type: 'brightness',
+        access: ['write', 'read'],
+      },
+      {
+        name: 'Color',
+        selector: 'device-light-rgb-color',
+        category: 'light',
+        type: 'color',
+        access: ['write', 'read'],
+      },
+      {
+        name: 'Color temperature',
+        selector: 'device-light-rgb-temperature',
+        category: 'light',
+        type: 'temperature',
+        access: ['write', 'read'],
+      },
+    ]);
+
+    // Device without room is listed under the "no-room" entry.
+    expect(homeSchema['no-room'].devices).to.have.property('device-light-no-room');
+
+    // Device without binary feature is added as a standalone entry.
+    expect(homeSchema.salon.devices['device-color-strip']).to.deep.equal({
+      name: 'Color Strip',
+      selector: 'device-color-strip',
+      features: [
+        {
+          name: 'Color',
+          selector: 'device-color-strip-color',
+          category: 'light',
+          type: 'color',
+          access: ['write', 'read'],
+        },
+      ],
+    });
+
+    const tools = await mcpHandler.getAllTools();
+    const setLightTool = tools.find((tool) => tool.intent === 'device.set-light');
+    const getStateTool = tools.find((tool) => tool.intent === 'device.get-state');
+
+    expect(setLightTool).to.not.equal(undefined);
+
+    const setLightApiTool = mcpToolsToChatApiFormat(tools).find((tool) => tool.function.name === 'device_set_light');
+    expect(setLightApiTool.function.parameters.properties).to.have.all.keys(
+      'brightness',
+      'color',
+      'temperature',
+      'device',
+      'room',
+    );
+
+    const brightnessResult = await setLightTool.cb({ brightness: 30, device: 'Living Room Light' });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[1].type).to.eq('brightness');
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(76); // 30% of 0-254
+    expect(brightnessResult.content[0].text).to.eq(
+      'device.set-light: brightness 30% command sent for Living Room Light',
+    );
+
+    mcpHandler.gladys.device.setValue.resetHistory();
+
+    const colorResult = await setLightTool.cb({ color: '#0000FF', device: 'Living Room Light' });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[1].type).to.eq('color');
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(255);
+    expect(colorResult.content[0].text).to.eq('device.set-light: color #0000FF command sent for Living Room Light');
+
+    mcpHandler.gladys.device.setValue.resetHistory();
+
+    const temperatureResult = await setLightTool.cb({ temperature: 4000, device: 'Living Room Light' });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[1].type).to.eq('temperature');
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(250); // 4000K = 250 mired
+    expect(temperatureResult.content[0].text).to.eq(
+      'device.set-light: temperature 4000K command sent for Living Room Light',
+    );
+
+    mcpHandler.gladys.device.setValue.resetHistory();
+
+    const combinedResult = await setLightTool.cb({
+      brightness: 100,
+      color: '00FF00',
+      temperature: 2700,
+      device: 'Living Room Light',
+    });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(3);
+    const setValues = mcpHandler.gladys.device.setValue.getCalls().map((call) => [call.args[1].type, call.args[2]]);
+    expect(setValues).to.deep.equal([
+      ['brightness', 254],
+      ['color', 65280],
+      ['temperature', 370], // 2700K = 370 mired
+    ]);
+    expect(combinedResult.content[0].text).to.eq(
+      'device.set-light: brightness 100% and color 00FF00 and temperature 2700K command sent for Living Room Light',
+    );
+
+    mcpHandler.gladys.device.setValue.resetHistory();
+
+    const noRoomResult = await setLightTool.cb({ brightness: 10, room: 'No room' });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[0].name).to.eq('No Room Light');
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(10);
+    expect(noRoomResult.content[0].text).to.eq('device.set-light: brightness 10% command sent for No Room Light');
+
+    const stateResult = await getStateTool.cb({ room: 'Salon', device_type: 'light' });
+    expect(stateResult.content[0].text).to.eq('toonmockdata');
+    const states = mcpHandler.toon.lastCall.args[0];
+    const stateFeatureNames = states.map((state) => state.feature);
+    expect(stateFeatureNames).to.include.members(['On/Off', 'Brightness', 'Color', 'Color temperature']);
+  });
+
+  it('should cover device.set-light error and filtering branches', async () => {
+    const rooms = [
+      { id: 'room-1', name: 'Salon', selector: 'salon' },
+      { id: 'room-2', name: 'Chambre', selector: 'chambre' },
+      { id: 'room-3', name: 'Cuisine', selector: 'cuisine' },
+    ];
+    const lightDevices = [
+      {
+        selector: 'device-light-salon',
+        name: 'Salon Light',
+        room: { selector: 'salon', name: 'Salon' },
+        features: [
+          {
+            id: 1,
+            selector: 's-brightness',
+            name: 'Brightness',
+            category: 'light',
+            type: 'brightness',
+            min: 0,
+            max: 100,
+          },
+          { id: 2, selector: 's-color', name: 'Color', category: 'light', type: 'color', min: 0, max: 16777215 },
+          {
+            id: 3,
+            selector: 's-temperature',
+            name: 'Temperature',
+            category: 'light',
+            type: 'temperature',
+            min: 153,
+            max: 500,
+          },
+        ],
+      },
+      {
+        selector: 'device-light-chambre',
+        name: 'Bedroom Light',
+        room: { selector: 'chambre', name: 'Chambre' },
+        features: [
+          {
+            id: 4,
+            selector: 'c-brightness',
+            name: 'Brightness',
+            category: 'light',
+            type: 'brightness',
+            min: 0,
+            max: 100,
+          },
+        ],
+      },
+    ];
+
+    const mcpHandler = {
+      serviceId: 'test',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      formatValue: stub().returns({ value: 0 }),
+      findBySimilarity,
+      gladys: {
+        room: { getAll: stub().resolves(rooms) },
+        user: { get: stub().resolves([]) },
+        house: { get: stub().resolves([]) },
+        calendar: { get: stub().resolves([]) },
+        area: { get: stub().resolves([]) },
+        scene: { get: stub().resolves([]), create: stub().resolves({}) },
+        device: {
+          get: stub().resolves(lightDevices),
+          getBySelector: stub().resolves(lightDevices[0]),
+          setValue: stub().resolves(),
+          getDeviceFeaturesAggregates: stub().resolves({ values: [] }),
+          camera: { getImagesInRoom: stub().resolves([]) },
+        },
+        event: { emit: fake() },
+      },
+      levenshtein: { distance: stub().returns(10) },
+      toon: stub().returns('ok'),
+    };
+
+    const tools = await mcpHandler.getAllTools();
+    const setLightTool = tools.find((tool) => tool.intent === 'device.set-light');
+
+    const missingValuesResult = await setLightTool.cb({ device: 'Salon Light' });
+    expect(missingValuesResult.content[0].text).to.eq('device.set-light: brightness, color or temperature is required');
+
+    const missingTargetResult = await setLightTool.cb({ brightness: 50 });
+    expect(missingTargetResult.content[0].text).to.eq('device.set-light: device or room is required');
+
+    const unknownDeviceResult = await setLightTool.cb({ brightness: 50, device: 'Unknown Light' });
+    expect(unknownDeviceResult.content[0].text).to.eq('device.set-light: no device found');
+
+    const noDeviceInRoomResult = await setLightTool.cb({ brightness: 50, room: 'Cuisine' });
+    expect(noDeviceInRoomResult.content[0].text).to.eq('device.set-light: no device found');
+
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(0);
+
+    const roomResult = await setLightTool.cb({ brightness: 50, room: 'Chambre' });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[0].name).to.eq('Bedroom Light');
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(50);
+    expect(roomResult.content[0].text).to.eq('device.set-light: brightness 50% command sent for Bedroom Light');
+
+    mcpHandler.gladys.device.setValue.resetHistory();
+
+    const roomAndDeviceResult = await setLightTool.cb({ color: '#FF0000', room: 'Salon', device: 'Salon Light' });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[0].name).to.eq('Salon Light');
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(16711680);
+    expect(roomAndDeviceResult.content[0].text).to.eq('device.set-light: color #FF0000 command sent for Salon Light');
+
+    mcpHandler.gladys.device.setValue.resetHistory();
+
+    // 10000K = 100 mired, clamped to feature min (153 mired).
+    const coolClampResult = await setLightTool.cb({ temperature: 10000, device: 'Salon Light' });
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(153);
+    expect(coolClampResult.content[0].text).to.eq('device.set-light: temperature 10000K command sent for Salon Light');
+
+    mcpHandler.gladys.device.setValue.resetHistory();
+
+    // 1000K = 1000 mired, clamped to feature max (500 mired).
+    const warmClampResult = await setLightTool.cb({ temperature: 1000, device: 'Salon Light' });
+    expect(mcpHandler.gladys.device.setValue.firstCall.args[2]).to.eq(500);
+    expect(warmClampResult.content[0].text).to.eq('device.set-light: temperature 1000K command sent for Salon Light');
+  });
+
+  it('should report when device.set-light cannot dispatch a matching feature', async () => {
+    const rooms = [{ id: 'room-1', name: 'Salon', selector: 'salon' }];
+    const brightnessOnlyLight = {
+      selector: 'device-light-brightness-only',
+      name: 'Brightness Only Light',
+      room: { selector: 'salon', name: 'Salon' },
+      features: [
+        {
+          id: 1,
+          selector: 'b-brightness',
+          name: 'Brightness',
+          category: 'light',
+          type: 'brightness',
+          min: 0,
+          max: 100,
+        },
+      ],
+    };
+    const colorOnlyLight = {
+      selector: 'device-light-color-only',
+      name: 'Color Only Light',
+      room: { selector: 'salon', name: 'Salon' },
+      features: [
+        { id: 2, selector: 'c-color', name: 'Color', category: 'light', type: 'color', min: 0, max: 16777215 },
+      ],
+    };
+
+    const mcpHandler = {
+      serviceId: 'test',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      formatValue: stub().returns({ value: 0 }),
+      findBySimilarity,
+      gladys: {
+        room: { getAll: stub().resolves(rooms) },
+        user: { get: stub().resolves([]) },
+        house: { get: stub().resolves([]) },
+        calendar: { get: stub().resolves([]) },
+        area: { get: stub().resolves([]) },
+        scene: { get: stub().resolves([]), create: stub().resolves({}) },
+        device: {
+          get: stub().resolves([brightnessOnlyLight, colorOnlyLight]),
+          setValue: stub().resolves(),
+          getDeviceFeaturesAggregates: stub().resolves({ values: [] }),
+          camera: { getImagesInRoom: stub().resolves([]) },
+        },
+        event: { emit: fake() },
+      },
+      levenshtein: { distance: stub().returns(10) },
+      toon: stub().returns('ok'),
+    };
+
+    const tools = await mcpHandler.getAllTools();
+    const setLightTool = tools.find((tool) => tool.intent === 'device.set-light');
+
+    const missingColorResult = await setLightTool.cb({ color: '#123456', device: 'Brightness Only Light' });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(0);
+    expect(missingColorResult.content[0].text).to.eq(
+      'device.set-light: no command sent, no matching feature on Brightness Only Light (missing color feature)',
+    );
+
+    const missingBrightnessAndTemperatureResult = await setLightTool.cb({
+      brightness: 20,
+      temperature: 3000,
+      device: 'Color Only Light',
+    });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(0);
+    expect(missingBrightnessAndTemperatureResult.content[0].text).to.eq(
+      'device.set-light: no command sent, no matching feature on Color Only Light (missing brightness and temperature feature)',
+    );
+
+    const partialResult = await setLightTool.cb({
+      brightness: 20,
+      color: '#FF0000',
+      device: 'Brightness Only Light',
+    });
+    expect(mcpHandler.gladys.device.setValue.callCount).to.eq(1);
+    expect(partialResult.content[0].text).to.eq(
+      'device.set-light: brightness 20% command sent for Brightness Only Light; could not dispatch for Brightness Only Light (missing color feature)',
+    );
+  });
+
+  it('should tell device.get-state that no device is configured instead of returning an empty list', async () => {
+    const rooms = [
+      { id: 'room-1', name: 'Salon', selector: 'salon' },
+      { id: 'room-2', name: 'Cuisine', selector: 'cuisine' },
+    ];
+
+    // The humidity sensor lives in the living room, the kitchen has none.
+    const humiditySensor = {
+      selector: 'capteur-salon',
+      name: 'Capteur salon',
+      room: { selector: 'salon', name: 'Salon' },
+      features: [
+        {
+          id: 'feature-humidity',
+          selector: 'capteur-salon-humidity',
+          name: 'Humidité',
+          category: 'humidity-sensor',
+          type: 'decimal',
+          unit: '%',
+          last_value: 52,
+        },
+      ],
+    };
+
+    const mcpHandler = {
+      serviceId: 'test',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      formatValue: stub().callsFake((feature) => ({
+        value: feature.last_value,
+        unit: feature.unit,
+        age: '2min',
+      })),
+      findBySimilarity,
+      gladys: {
+        room: { getAll: stub().resolves(rooms) },
+        user: { get: stub().resolves([]) },
+        house: { get: stub().resolves([]) },
+        calendar: { get: stub().resolves([]) },
+        area: { get: stub().resolves([]) },
+        scene: { get: stub().resolves([]), create: stub().resolves({}) },
+        device: {
+          get: stub().resolves([humiditySensor]),
+          getBySelector: stub().resolves(humiditySensor),
+          setValue: stub().resolves(),
+          getDeviceFeaturesAggregates: stub().resolves({ values: [] }),
+          camera: { getImagesInRoom: stub().resolves([]) },
+        },
+        event: { emit: fake() },
+      },
+      levenshtein: { distance: stub().returns(10) },
+      toon: stub().returns('toonmockdata'),
+    };
+
+    const tools = await mcpHandler.getAllTools();
+    const getStateTool = tools.find((tool) => tool.intent === 'device.get-state');
+
+    const noSensorInRoom = await getStateTool.cb({ room: 'Cuisine', device_type: 'humidity-sensor' });
+    expect(noSensorInRoom.content[0].text).to.eq(
+      'device.get-state: no device of type "humidity-sensor" is configured in room "Cuisine". ' +
+        'No measurement exists for this query, do not report any value.',
+    );
+
+    const noSensorAtAll = await getStateTool.cb({ room: undefined, device_type: 'co2-sensor' });
+    expect(noSensorAtAll.content[0].text).to.eq(
+      'device.get-state: no device of type "co2-sensor" is configured. ' +
+        'No measurement exists for this query, do not report any value.',
+    );
+
+    // A room that does have the sensor still returns the regular payload.
+    const withSensor = await getStateTool.cb({ room: 'Salon', device_type: 'humidity-sensor' });
+    expect(withSensor.content[0].text).to.eq('toonmockdata');
+  });
+
+  it('should answer device.get-state when the model targets the house or shortens the device type', async () => {
+    const rooms = [
+      { id: 'room-1', name: 'Salon', selector: 'salon', house_id: 'house-1' },
+      { id: 'room-2', name: 'Cuisine', selector: 'cuisine', house_id: 'house-1' },
+    ];
+    const houses = [{ id: 'house-1', name: 'Maison', selector: 'maison' }];
+
+    const buildSensor = (suffix, roomSelector, roomName, value) => ({
+      selector: `capteur-${suffix}`,
+      name: `Capteur ${suffix}`,
+      room: roomSelector ? { selector: roomSelector, name: roomName } : null,
+      features: [
+        {
+          id: `feature-${suffix}`,
+          selector: `capteur-${suffix}-temperature`,
+          name: 'Température',
+          category: 'temperature-sensor',
+          type: 'decimal',
+          unit: 'celsius',
+          last_value: value,
+        },
+      ],
+    });
+
+    // One sensor per room, plus one that was never assigned to a room.
+    const sensors = [
+      buildSensor('salon', 'salon', 'Salon', 21),
+      buildSensor('cuisine', 'cuisine', 'Cuisine', 23),
+      buildSensor('garage', null, null, 17),
+    ];
+
+    const mcpHandler = {
+      serviceId: 'test',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      formatValue: stub().callsFake((feature) => ({ value: feature.last_value, unit: feature.unit, age: '2min' })),
+      findBySimilarity,
+      gladys: {
+        room: { getAll: stub().resolves(rooms) },
+        user: { get: stub().resolves([]) },
+        house: { get: stub().resolves(houses) },
+        calendar: { get: stub().resolves([]) },
+        area: { get: stub().resolves([]) },
+        scene: { get: stub().resolves([]), create: stub().resolves({}) },
+        device: {
+          get: stub().resolves(sensors),
+          getBySelector: stub().callsFake(async (selector) => sensors.find((s) => s.selector === selector)),
+          setValue: stub().resolves(),
+          getDeviceFeaturesAggregates: stub().resolves({ values: [] }),
+          camera: { getImagesInRoom: stub().resolves([]) },
+        },
+        event: { emit: fake() },
+      },
+      levenshtein: { distance: stub().returns(10) },
+      toon: stub().callsFake((data) => JSON.stringify(data)),
+    };
+
+    const tools = await mcpHandler.getAllTools();
+    const getStateTool = tools.find((tool) => tool.intent === 'device.get-state');
+
+    // "Températures de la maison": the model targets the house, which is not a room,
+    // and shortens the category. Both used to return "no sensor is configured".
+    const wholeHome = await getStateTool.cb({ room: 'maison', device_type: 'temperature' });
+    const wholeHomeStates = JSON.parse(wholeHome.content[0].text);
+    expect(wholeHomeStates.map(({ room, value }) => ({ room, value }))).to.deep.equal([
+      { room: 'Salon', value: 21 },
+      { room: 'Cuisine', value: 23 },
+      { room: 'No room', value: 17 },
+    ]);
+    expect(wholeHomeStates.every(({ category }) => category === 'temperature-sensor')).to.eq(true);
+
+    // The shortened category alone resolves too.
+    const shortType = await getStateTool.cb({ room: undefined, device_type: 'temperature' });
+    expect(JSON.parse(shortType.content[0].text).length).to.eq(3);
+
+    // A real room is still the narrow filter it used to be.
+    const inRoom = await getStateTool.cb({ room: 'Salon', device_type: 'temperature' });
+    expect(JSON.parse(inRoom.content[0].text).map(({ room }) => room)).to.deep.equal(['Salon']);
+
+    // An unknown target is reported as such instead of claiming nothing is configured.
+    const unknownRoom = await getStateTool.cb({ room: 'Véranda', device_type: 'temperature' });
+    expect(unknownRoom.content[0].text).to.eq(
+      'device.get-state: "Véranda" is not a room of this home, no state was read. ' +
+        'Available rooms: Salon, Cuisine. ' +
+        'Call this tool again with one of them, or without the room parameter to cover the whole home.',
+    );
+
+    // A category that does not exist in this home keeps the explicit empty answer.
+    const unknownType = await getStateTool.cb({ room: 'maison', device_type: 'co2' });
+    expect(unknownType.content[0].text).to.eq(
+      'device.get-state: no device of type "co2" is configured in house "Maison". ' +
+        'No measurement exists for this query, do not report any value.',
+    );
+  });
+  describe('weather.get tool', () => {
+    const houses = [
+      { id: 'house-1', name: 'Maison', selector: 'maison', latitude: 48.8566, longitude: 2.3522 },
+      { id: 'house-2', name: 'Chalet', selector: 'chalet', latitude: 45.9237, longitude: 6.8694 },
+      { id: 'house-3', name: 'Bureau', selector: 'bureau', latitude: null, longitude: null },
+    ];
+
+    const pivotWeather = {
+      temperature: 27.28,
+      humidity: 58,
+      datetime: '2026-08-12T12:00:00.000Z',
+      units: 'metric',
+      weather: 'clear',
+      days: [{ datetime: '2026-08-13T00:00:00.000Z', weather: 'rain', temperature_min: 17, temperature_max: 24 }],
+    };
+
+    const buildMcpHandler = ({
+      houseList = houses,
+      weatherGet = stub().resolves(pivotWeather),
+      getById = stub().resolves({ id: 'user-1', language: 'fr', distance_unit_preference: 'us' }),
+      timezoneValue = 'Europe/Paris',
+    } = {}) => ({
+      serviceId: '7056e3d4-31cc-4d2a-bbdd-128cd49755e6',
+      getAllTools,
+      isSensorFeature,
+      isSwitchableFeature,
+      isLightControlFeature,
+      isShutterFeature,
+      isHistoryFeature,
+      isBatteryFeature,
+      isWritableSensorFeature,
+      findBySimilarity,
+      formatValue: stub().returns({ value: 1 }),
+      toon: stub().callsFake((value) => JSON.stringify(value)),
+      gladys: {
+        room: { getAll: stub().resolves([{ id: 'room-1', name: 'Salon', selector: 'salon' }]) },
+        user: { get: stub().resolves([]), getById },
+        house: { get: stub().resolves(houseList) },
+        calendar: { get: stub().resolves([]) },
+        area: { get: stub().resolves([]) },
+        scene: { get: stub().resolves([]), create: stub() },
+        device: { get: stub().resolves([]) },
+        weather: { get: weatherGet },
+        variable: {
+          getValue: stub().callsFake((name) => {
+            if (name === SYSTEM_VARIABLE_NAMES.TIMEZONE) {
+              return Promise.resolve(timezoneValue);
+            }
+            return Promise.resolve(null);
+          }),
+        },
+        event: { emit: fake() },
+      },
+      levenshtein: { distance: stub().returns(10) },
+    });
+
+    it('should get the weather of the first house with coordinates, with the user preferences', async () => {
+      const mcpHandler = buildMcpHandler();
+      const tools = await mcpHandler.getAllTools('user-1');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      expect(weatherTool.config.categories).to.deep.equal([
+        AI_CHAT_TOOL_CATEGORIES.WEATHER,
+        AI_CHAT_TOOL_CATEGORIES.OTHER,
+      ]);
+      // only the houses that have coordinates are proposed to the model
+      const { parameters } = mcpToolsToChatApiFormat([weatherTool])[0].function;
+      expect(parameters.properties.house.enum).to.deep.equal(['Maison', 'Chalet']);
+
+      const result = await weatherTool.cb({});
+
+      expect(mcpHandler.gladys.weather.get.firstCall.args[0]).to.deep.equal({
+        latitude: 48.8566,
+        longitude: 2.3522,
+        language: 'fr',
+        units: 'us',
+      });
+      const formatted = JSON.parse(result.content[0].text);
+      expect(formatted.house).to.equal('Maison');
+      expect(formatted.timezone).to.equal('Europe/Paris');
+      expect(formatted.now.temperature).to.equal(27.3);
+      expect(formatted.days[0].date).to.equal('2026-08-13');
+      // weekday name in the language of the user, like the provider request
+      expect(formatted.days[0].day_of_week).to.equal('jeudi');
+    });
+
+    it('should get the weather of the house asked by the model', async () => {
+      const mcpHandler = buildMcpHandler();
+      const tools = await mcpHandler.getAllTools('user-1');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      await weatherTool.cb({ house: 'Chalet' });
+
+      expect(mcpHandler.gladys.weather.get.firstCall.args[0]).to.deep.include({
+        latitude: 45.9237,
+        longitude: 6.8694,
+      });
+    });
+
+    it('should refuse to guess a home when the requested one does not match', async () => {
+      const mcpHandler = buildMcpHandler();
+      const tools = await mcpHandler.getAllTools('user-1');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      const result = await weatherTool.cb({ house: 'Villa inconnue' });
+
+      expect(result.content[0].text).to.equal(
+        'weather.get: no home found matching "Villa inconnue". Available homes: Maison, Chalet. ' +
+          'Ask the user which one instead of reporting the weather of another home.',
+      );
+      expect(mcpHandler.gladys.weather.get.called).to.equal(false);
+    });
+
+    it('should answer for the only home when there is nothing to disambiguate', async () => {
+      const mcpHandler = buildMcpHandler({ houseList: [houses[0], houses[2]] });
+      const tools = await mcpHandler.getAllTools('user-1');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      await weatherTool.cb({ house: 'Paris' });
+
+      expect(mcpHandler.gladys.weather.get.firstCall.args[0]).to.deep.include({
+        latitude: 48.8566,
+        longitude: 2.3522,
+      });
+    });
+
+    it('should default to metric, English and Europe/Paris without user or timezone', async () => {
+      const mcpHandler = buildMcpHandler({ timezoneValue: null });
+      const tools = await mcpHandler.getAllTools();
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      const result = await weatherTool.cb({});
+
+      expect(mcpHandler.gladys.user.getById.called).to.equal(false);
+      expect(mcpHandler.gladys.weather.get.firstCall.args[0]).to.deep.include({ language: 'en', units: 'metric' });
+      expect(JSON.parse(result.content[0].text).timezone).to.equal('Europe/Paris');
+    });
+
+    it('should default the units and the language when the user has no preference', async () => {
+      const mcpHandler = buildMcpHandler({ getById: stub().resolves({ id: 'user-1' }) });
+      const tools = await mcpHandler.getAllTools('user-1');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      await weatherTool.cb({});
+
+      expect(mcpHandler.gladys.weather.get.firstCall.args[0]).to.deep.include({ language: 'en', units: 'metric' });
+    });
+
+    it('should keep answering when the user cannot be loaded', async () => {
+      const mcpHandler = buildMcpHandler({ getById: stub().rejects(new Error('User not found')) });
+      const tools = await mcpHandler.getAllTools('unknown-user');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      await weatherTool.cb({});
+
+      expect(mcpHandler.gladys.weather.get.firstCall.args[0]).to.deep.include({ language: 'en', units: 'metric' });
+    });
+
+    it('should report a provider failure instead of throwing', async () => {
+      const mcpHandler = buildMcpHandler({
+        weatherGet: stub().rejects(new Error('No weather provider is installed or configured.')),
+      });
+      const tools = await mcpHandler.getAllTools('user-1');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      const result = await weatherTool.cb({});
+
+      expect(result.content[0].text).to.equal(
+        'weather.get: no weather available for Maison, the weather provider could not be reached. ' +
+          'Tell the user, and do not give a forecast of your own.',
+      );
+      expect(mcpHandler.toon.called).to.equal(false);
+    });
+
+    it('should tell the model when no weather integration is configured', async () => {
+      const mcpHandler = buildMcpHandler({
+        weatherGet: stub().rejects(new ServiceNotConfiguredError('No weather provider is installed or configured.')),
+      });
+      const tools = await mcpHandler.getAllTools('user-1');
+      const weatherTool = tools.find((tool) => tool.intent === 'weather.get');
+
+      const result = await weatherTool.cb({});
+
+      expect(result.content[0].text).to.equal(
+        'weather.get: no weather available for Maison, no weather integration is installed or configured in Gladys. ' +
+          'Tell the user, and do not give a forecast of your own.',
+      );
+    });
+
+    it('should not expose weather.get without a house with coordinates', async () => {
+      const mcpHandler = buildMcpHandler({ houseList: [houses[2]] });
+      const tools = await mcpHandler.getAllTools('user-1');
+
+      expect(tools.find((tool) => tool.intent === 'weather.get')).to.equal(undefined);
+    });
   });
 });

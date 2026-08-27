@@ -6,8 +6,10 @@ const { proxy } = require('./mcp.proxy');
 const {
   isSensorFeature,
   isSwitchableFeature,
+  isLightControlFeature,
   isShutterFeature,
   isHistoryFeature,
+  isBatteryFeature,
   isWritableSensorFeature,
 } = require('./selectFeature');
 const { findBySimilarity } = require('./findBySimilarity');
@@ -41,8 +43,10 @@ MCPHandler.prototype.getAllResources = getAllResources;
 MCPHandler.prototype.getAllTools = getAllTools;
 MCPHandler.prototype.isSensorFeature = isSensorFeature;
 MCPHandler.prototype.isSwitchableFeature = isSwitchableFeature;
+MCPHandler.prototype.isLightControlFeature = isLightControlFeature;
 MCPHandler.prototype.isShutterFeature = isShutterFeature;
 MCPHandler.prototype.isHistoryFeature = isHistoryFeature;
+MCPHandler.prototype.isBatteryFeature = isBatteryFeature;
 MCPHandler.prototype.isWritableSensorFeature = isWritableSensorFeature;
 MCPHandler.prototype.findBySimilarity = findBySimilarity;
 MCPHandler.prototype.formatValue = formatValue;

@@ -15,6 +15,7 @@ const {
   TotalVolatileOrganicCompoundsConcentrationMeasurement,
   NitrogenDioxideConcentrationMeasurement,
   FormaldehydeConcentrationMeasurement,
+  CarbonDioxideConcentrationMeasurement,
   ElectricalPowerMeasurement,
   ElectricalEnergyMeasurement,
   HepaFilterMonitoring,
@@ -23,11 +24,14 @@ const {
   RvcRunMode,
   RvcCleanMode,
   PowerSource,
+  DoorLock,
   // eslint-disable-next-line import/no-unresolved
 } = require('@matter/main/clusters');
 
 const logger = require('../../../utils/logger');
 const { matterFanModeToGladys, matterAttributeToNumber } = require('../utils/fanMatterMapping');
+const { matterLockStateToGladys, matterLockStateToGladysBinary } = require('../utils/doorLockMatterMapping');
+const { matterSystemModeToGladysAcMode } = require('../utils/thermostatMatterMapping');
 const { hsbToRgb, rgbToInt } = require('../../../utils/colors');
 const { EVENTS, STATE, BUTTON_STATUS } = require('../../../utils/constants');
 const {
@@ -61,6 +65,11 @@ async function listenToStateChange(nodeId, devicePath, device) {
     });
   }
 
+  // The Gladys category of this feature depends on the Matter device type of the endpoint, see
+  // `utils/booleanStateMatterMapping.js`. The polarity of the StateValue attribute is the same for
+  // every device type we map: 1 (STATE.ON) means leak detected / rain detected / contact closed,
+  // which matches the Gladys semantics of `leak-sensor`, `rain-sensor` and `opening-sensor`
+  // (OPENING_SENSOR_STATE.CLOSE = 1, OPENING_SENSOR_STATE.OPEN = 0).
   const booleanState = device.getClusterClientById(BooleanState.Complete.id);
   if (booleanState && !this.stateChangeListeners.has(booleanState)) {
     logger.debug(`Matter: Adding state change listener for BooleanState cluster ${booleanState.name}`);
@@ -341,6 +350,24 @@ async function listenToStateChange(nodeId, devicePath, device) {
     });
   }
 
+  const carbonDioxideConcentrationMeasurement = device.getClusterClientById(
+    CarbonDioxideConcentrationMeasurement.Complete.id,
+  );
+  if (carbonDioxideConcentrationMeasurement && !this.stateChangeListeners.has(carbonDioxideConcentrationMeasurement)) {
+    logger.debug(
+      `Matter: Adding state change listener for CarbonDioxideConcentrationMeasurement cluster ${carbonDioxideConcentrationMeasurement.name}`,
+    );
+    this.stateChangeListeners.add(carbonDioxideConcentrationMeasurement);
+    // Subscribe to CarbonDioxideConcentrationMeasurement attribute changes
+    carbonDioxideConcentrationMeasurement.addMeasuredValueAttributeListener((value) => {
+      logger.debug(`Matter: CarbonDioxideConcentrationMeasurement attribute changed to ${value}`);
+      this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
+        device_feature_external_id: `matter:${nodeId}:${devicePath}:${CarbonDioxideConcentrationMeasurement.Complete.id}`,
+        state: value,
+      });
+    });
+  }
+
   const thermostat = device.getClusterClientById(Thermostat.Complete.id);
   if (thermostat && !this.stateChangeListeners.has(thermostat)) {
     logger.debug(`Matter: Adding state change listener for Thermostat cluster ${thermostat.name}`);
@@ -373,6 +400,18 @@ async function listenToStateChange(nodeId, devicePath, device) {
           state: value / 100,
         });
       });
+      thermostat.addSystemModeAttributeListener((value) => {
+        logger.debug(`Matter: Thermostat systemMode attribute changed to ${value}`);
+        const gladysAcMode = matterSystemModeToGladysAcMode(value);
+        // SystemMode values without a Gladys equivalent (e.g. Off) are ignored,
+        // on/off is handled by the OnOff cluster
+        if (gladysAcMode !== null) {
+          this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
+            device_feature_external_id: `matter:${nodeId}:${devicePath}:${Thermostat.Complete.id}:mode`,
+            state: gladysAcMode,
+          });
+        }
+      });
     }
   }
 
@@ -385,8 +424,8 @@ async function listenToStateChange(nodeId, devicePath, device) {
     // Subscribe to ActivePower attribute changes
     electricalPowerMeasurement.addActivePowerAttributeListener((value) => {
       logger.debug(`Matter: ElectricalPowerMeasurement ActivePower attribute changed to ${value}`);
-      // Value is in milliwatts, convert to watts
-      const powerInWatts = value !== null ? value / 1000 : null;
+      // Value is in milliwatts (int64, may be a BigInt), convert to watts
+      const powerInWatts = value !== null ? Number(value) / 1000 : null;
       this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
         device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalPowerMeasurement.Complete.id}:power`,
         state: powerInWatts,
@@ -396,8 +435,8 @@ async function listenToStateChange(nodeId, devicePath, device) {
     if (electricalPowerMeasurement.addVoltageAttributeListener) {
       electricalPowerMeasurement.addVoltageAttributeListener((value) => {
         logger.debug(`Matter: ElectricalPowerMeasurement Voltage attribute changed to ${value}`);
-        // Value is in millivolts, convert to volts
-        const voltageInVolts = value !== null ? value / 1000 : null;
+        // Value is in millivolts (int64, may be a BigInt), convert to volts
+        const voltageInVolts = value !== null ? Number(value) / 1000 : null;
         this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
           device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalPowerMeasurement.Complete.id}:voltage`,
           state: voltageInVolts,
@@ -408,8 +447,8 @@ async function listenToStateChange(nodeId, devicePath, device) {
     if (electricalPowerMeasurement.addActiveCurrentAttributeListener) {
       electricalPowerMeasurement.addActiveCurrentAttributeListener((value) => {
         logger.debug(`Matter: ElectricalPowerMeasurement ActiveCurrent attribute changed to ${value}`);
-        // Value is in milliamps, convert to amps
-        const currentInAmps = value !== null ? value / 1000 : null;
+        // Value is in milliamps (int64, may be a BigInt), convert to amps
+        const currentInAmps = value !== null ? Number(value) / 1000 : null;
         this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
           device_feature_external_id: `matter:${nodeId}:${devicePath}:${ElectricalPowerMeasurement.Complete.id}:current`,
           state: currentInAmps,
@@ -428,8 +467,9 @@ async function listenToStateChange(nodeId, devicePath, device) {
     if (electricalEnergyMeasurement.addCumulativeEnergyImportedAttributeListener) {
       electricalEnergyMeasurement.addCumulativeEnergyImportedAttributeListener((value) => {
         logger.debug(`Matter: ElectricalEnergyMeasurement CumulativeEnergyImported attribute changed to`, value);
-        // Value is an object with energy field in milliwatt-hours, convert to kilowatt-hours
-        const energyInKwh = value && value.energy !== null ? value.energy / 1000000 : null;
+        // Value is an object with energy field in milliwatt-hours (int64, may be a BigInt),
+        // convert to kilowatt-hours
+        const energyInKwh = value && value.energy !== null ? Number(value.energy) / 1000000 : null;
         const externalId = `matter:${nodeId}:${devicePath}:${ElectricalEnergyMeasurement.Complete.id}:energy`;
         this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
           device_feature_external_id: externalId,
@@ -607,6 +647,29 @@ async function listenToStateChange(nodeId, devicePath, device) {
         device_feature_external_id: cleanModeExternalId,
         state: gladysMode,
       });
+    });
+  }
+
+  const doorLock = device.getClusterClientById(DoorLock.Complete.id);
+  if (doorLock && !this.stateChangeListeners.has(doorLock)) {
+    logger.debug(`Matter: Adding state change listener for DoorLock cluster ${doorLock.name}`);
+    this.stateChangeListeners.add(doorLock);
+    const doorLockExternalId = `matter:${nodeId}:${devicePath}:${DoorLock.Complete.id}`;
+    // Subscribe to the lock state attribute changes
+    doorLock.addLockStateAttributeListener((value) => {
+      logger.debug(`Matter: DoorLock lockState attribute changed to ${value}`);
+      this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
+        device_feature_external_id: `${doorLockExternalId}:state`,
+        state: matterLockStateToGladys(value),
+      });
+      const binaryState = matterLockStateToGladysBinary(value);
+      // A transient/unknown lock state has no binary equivalent, so we keep the last known one
+      if (binaryState !== null) {
+        this.gladys.event.emit(EVENTS.DEVICE.NEW_STATE, {
+          device_feature_external_id: `${doorLockExternalId}:lock`,
+          state: binaryState,
+        });
+      }
     });
   }
 

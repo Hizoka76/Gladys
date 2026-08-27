@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 
 const { fake, assert } = sinon;
 const proxyquire = require('proxyquire').noCallThru();
@@ -26,7 +26,7 @@ const event = {
 const job = new Job(event);
 
 const config = {
-  tempFolder: '/tmp/gladys',
+  tempFolder: process.env.TEMP_FOLDER || '/tmp/gladys',
 };
 
 /**

@@ -1,6 +1,8 @@
 const EventEmitter = require('events');
 const { expect, assert } = require('chai');
-const { fake, spy } = require('sinon');
+const sinon = require('sinon').createSandbox();
+
+const { fake, spy } = sinon;
 
 const db = require('../../../models');
 const Device = require('../../../lib/device');
@@ -196,5 +198,52 @@ describe('Device.getDeviceStatesHistory', function Describe() {
   it('should reject on invalid before date', async () => {
     const promise = deviceInstance.getDeviceStatesHistory({ before: 'not-a-date' });
     await assert.isRejected(promise, 'Invalid "before" date');
+  });
+
+  it('should return only the bounded window when since is provided, without widening', async () => {
+    const querySpy = spy(db, 'duckDbReadConnectionAllAsync');
+    try {
+      const states = await deviceInstance.getDeviceStatesHistory({
+        take: 10,
+        since: new Date('2025-08-28T15:01:00.000Z').toISOString(),
+        before: new Date('2026-01-01T00:00:00.000Z').toISOString(),
+      });
+      // Only the states inside [since, before) are returned, even though the page
+      // is not full: the lower bound is inclusive (the 15:01 temperature state is
+      // returned) and older states (15:00) are excluded.
+      expect(states).to.have.lengthOf(2);
+      expect(states[0].created_at).to.deep.equal(new Date('2025-08-28T15:02:00.000Z'));
+      expect(states[1].created_at).to.deep.equal(new Date('2025-08-28T15:01:00.000Z'));
+      // A single query: a bounded probe never widens, the caller does.
+      expect(querySpy.callCount).to.equal(1);
+    } finally {
+      querySpy.restore();
+    }
+  });
+
+  it('should return an empty array when the since window contains no state', async () => {
+    const states = await deviceInstance.getDeviceStatesHistory({
+      take: 10,
+      since: new Date('2025-09-01T00:00:00.000Z').toISOString(),
+      before: new Date('2025-10-01T00:00:00.000Z').toISOString(),
+    });
+    expect(states).to.have.lengthOf(0);
+  });
+
+  it('should reject on invalid since date', async () => {
+    const promise = deviceInstance.getDeviceStatesHistory({ since: 'not-a-date' });
+    await assert.isRejected(promise, 'Invalid "since" date');
+  });
+
+  it('should return a null room for a device outside any room', async () => {
+    try {
+      await db.Device.update({ room_id: null }, { where: { id: '7f85c2f8-86cc-4600-84db-6c074dadb4e8' } });
+      const states = await deviceInstance.getDeviceStatesHistory({ categories: 'light' });
+      expect(states).to.have.lengthOf(2);
+      expect(states[0].room).to.equal(null);
+    } finally {
+      // The test database is shared across the whole run: restore the seeded room.
+      await db.Device.update({ room_id: TEST_ROOM_ID }, { where: { id: '7f85c2f8-86cc-4600-84db-6c074dadb4e8' } });
+    }
   });
 });

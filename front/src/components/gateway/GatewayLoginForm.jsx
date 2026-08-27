@@ -1,11 +1,20 @@
-import { Text, Localizer } from 'preact-i18n';
+import { Text, MarkupText, Localizer } from 'preact-i18n';
 import cx from 'classnames';
 import { RequestStatus, LoginStatus } from '../../utils/consts';
 
 const EXTERNAL_FORGOT_PASSWORD_LINK = 'https://plus.gladysassistant.com/forgot-password';
 
 const GatewayLoginForm = ({ children, ...props }) => (
-  <form onSubmit={!props.gatewayLoginStep2 ? props.login : props.loginTwoFactor} class="card">
+  <form
+    onSubmit={
+      !props.gatewayLoginStep2
+        ? props.login
+        : props.gatewayLoginUseRecoveryCode
+        ? props.loginTwoFactorRecoveryCode
+        : props.loginTwoFactor
+    }
+    class="card"
+  >
     <div class="card-body p-6">
       <div
         class={cx('dimmer', {
@@ -31,6 +40,21 @@ const GatewayLoginForm = ({ children, ...props }) => (
                 {props.gatewayLoginError}
               </div>
             </>
+          )}
+          {props.gatewayLoginStatus === LoginStatus.WrongTwoFactorCodeError && (
+            <div class="alert alert-danger" role="alert">
+              <Text id="gatewayLogin.invalidTwoFactorCode" />
+            </div>
+          )}
+          {props.gatewayLoginStatus === LoginStatus.WrongRecoveryCodeError && (
+            <div class="alert alert-danger" role="alert">
+              <Text id="gatewayLogin.invalidRecoveryCode" />
+            </div>
+          )}
+          {props.gatewayLoginStep2 && props.gatewayTwoFactorJustEnabled && (
+            <div class="alert alert-success" role="alert">
+              <Text id="gatewayLogin.twoFactorEnabledSuccess" />
+            </div>
           )}
           {props.gatewayLoginStatus === RequestStatus.UserNotAcceptedLocally && (
             <div class="alert alert-danger" role="alert">
@@ -93,7 +117,7 @@ const GatewayLoginForm = ({ children, ...props }) => (
               </Localizer>
             </div>
           )}
-          {props.gatewayLoginStep2 && (
+          {props.gatewayLoginStep2 && !props.gatewayLoginUseRecoveryCode && (
             <div class="form-group">
               <label class="form-label">
                 <Text id="gatewayLogin.twoFactorCodeLabel" />
@@ -105,6 +129,9 @@ const GatewayLoginForm = ({ children, ...props }) => (
                   placeholder={<Text id="gatewayLogin.twoFactorCodePlaceholder" />}
                   value={props.gatewayLoginTwoFactorCode}
                   onInput={props.updateLoginTwoFactorCode}
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
                   autofocus
                 />
               </Localizer>
@@ -112,6 +139,40 @@ const GatewayLoginForm = ({ children, ...props }) => (
                 {' '}
                 <Text id="gatewayLogin.invalidTwoFactorCode" />
               </div>
+              <p class="text-muted small mt-2 mb-0">
+                <Text id="gatewayLogin.lostTwoFactor" />{' '}
+                <a href="#" onClick={props.showRecoveryCodeLogin}>
+                  <Text id="gatewayLogin.useRecoveryCodeLink" />
+                </a>
+                <br />
+                <MarkupText id="gatewayLogin.noRecoveryCode" />
+              </p>
+            </div>
+          )}
+          {props.gatewayLoginStep2 && props.gatewayLoginUseRecoveryCode && (
+            <div class="form-group">
+              <label class="form-label" htmlFor="gateway-login-recovery-code">
+                <Text id="gatewayLogin.recoveryCodeLabel" />
+              </label>
+              <Localizer>
+                <input
+                  id="gateway-login-recovery-code"
+                  type="text"
+                  class="form-control"
+                  placeholder={<Text id="gatewayLogin.recoveryCodePlaceholder" />}
+                  value={props.gatewayLoginRecoveryCode}
+                  onInput={props.updateLoginRecoveryCode}
+                  autocomplete="off"
+                  autofocus
+                />
+              </Localizer>
+              <p class="text-muted small mt-2 mb-0">
+                <a href="#" onClick={props.showTwoFactorCodeLogin}>
+                  <Text id="gatewayLogin.useTwoFactorCodeLink" />
+                </a>
+                <br />
+                <MarkupText id="gatewayLogin.noRecoveryCode" />
+              </p>
             </div>
           )}
           <div class="form-footer">
@@ -126,7 +187,7 @@ const GatewayLoginForm = ({ children, ...props }) => (
             )}
             {props.gatewayLoginStep2 && (
               <button
-                onClick={props.loginTwoFactor}
+                onClick={props.gatewayLoginUseRecoveryCode ? props.loginTwoFactorRecoveryCode : props.loginTwoFactor}
                 class="btn btn-primary btn-block"
                 disabled={props.gatewayLoginStatus === RequestStatus.Getting}
               >

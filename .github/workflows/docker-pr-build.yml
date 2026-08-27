@@ -3,11 +3,19 @@ run-name: Pull request tests ${{ github.head_ref }}
 
 on:
   pull_request:
-    branches: [master]
+    # claude/** lets stacked pull requests (based on a feature branch
+    # instead of master) run the same CI as regular pull requests
+    branches: [master, 'claude/**']
     types: [opened, synchronize, reopened, ready_for_review]
+  # Merge queue builds: the queue only merges a group once the required
+  # checks of this workflow have passed on the merge_group ref.
+  merge_group:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref }}
+  # github.head_ref is empty on merge_group events, so fall back to
+  # github.ref (unique per queue entry): without the fallback every queue
+  # build would share one concurrency group and cancel the others.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,15 +50,18 @@ jobs:
         working-directory: ./front
         run: |
           npm run compare-translations
-  test-server:
-    name: Server test
+  lint-server:
+    name: Server lint
     runs-on: ubuntu-22.04
+    # This job only reads the repository, so restrict the GITHUB_TOKEN
+    # accordingly (npm ci runs dependency lifecycle scripts).
+    permissions:
+      contents: read
     steps:
       - name: ⬇️ Checkout Gladys code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
       - name: 💽 Setup nodejs
+        id: setup-node
         uses: actions/setup-node@v3
         with:
           node-version-file: 'server/package.json'
@@ -60,10 +71,21 @@ jobs:
         run: |
           sudo apt update
           sudo apt-get install -y libudev-dev sqlite3 openssl python-is-python3
+      # Same server node_modules cache as the "Server test" job (shared key).
+      - name: 💾 Restore NPM dependencies cache
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/node_modules
+            server/services/*/node_modules
+          key: server-deps-v1-${{ runner.os }}-node${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('server/**/package-lock.json') }}
       - name: 📦 Install Global NPM Packages
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         run: |
           sudo npm install typescript node-gyp -g
       - name: 📦 Install NPM server packages
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         working-directory: ./server
         run: |
           npm ci
@@ -75,17 +97,63 @@ jobs:
         working-directory: ./server
         run: |
           npm run eslint
+      - name: 🔐 Dependencies security audit
+        working-directory: ./server
+        run: npm audit --production --audit-level=critical || true
+  test-server:
+    name: Server test
+    runs-on: ubuntu-22.04
+    steps:
+      - name: ⬇️ Checkout Gladys code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+      - name: 💽 Setup nodejs
+        id: setup-node
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: 'server/package.json'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+      - name: 💽 Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt-get install -y libudev-dev sqlite3 openssl python-is-python3
+      # Installing the server dependencies takes ~40s on every run: cache the
+      # installed node_modules keyed on the lockfiles and skip the install on a
+      # cache hit (same pattern as the Cypress job). server/services/*/node_modules
+      # matters because the server postinstall installs every service's own
+      # dependencies. The node version is part of the key because the trees
+      # contain native addons built for the running node.
+      - name: 💾 Restore NPM dependencies cache
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/node_modules
+            server/services/*/node_modules
+          key: server-deps-v1-${{ runner.os }}-node${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('server/**/package-lock.json') }}
+      - name: 📦 Install Global NPM Packages
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo npm install typescript node-gyp -g
+      - name: 📦 Install NPM server packages
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        working-directory: ./server
+        run: |
+          npm ci
       - name: ✅ Test with coverage
         working-directory: ./server
         run: |
           npm run coverage
-      - name: 🔐 Dependencies security audit
-        working-directory: ./server
-        run: npm audit --production --audit-level=critical || true
       - name: 📄 Codecov report upload
         uses: codecov/codecov-action@v4
         with:
-          fail_ci_if_error: true
+          # Codecov uploads are flaky (rate limits, see below). Failing the
+          # job is fine on a pull request, but in the merge queue it would
+          # block every group behind an external service, so only enforce
+          # the upload on pull_request builds.
+          fail_ci_if_error: ${{ github.event_name != 'merge_group' }}
           token: 08cd0d46-0291-42ed-b352-50924cb6cca6
 
           ## Yes, we are storing the CODECOV token in plain text here and not as a secret.
@@ -101,6 +169,7 @@ jobs:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v3
       - name: 💽 Setup nodejs
+        id: setup-node
         uses: actions/setup-node@v3
         with:
           node-version-file: 'front/package.json'
@@ -110,7 +179,26 @@ jobs:
         run: |
           sudo apt update
           sudo apt-get install -y libudev-dev sqlite3 openssl python-is-python3
+      # Installing the root + front + server dependencies takes ~1min20 on every
+      # run, so cache the installed node_modules (and the Cypress binary) keyed
+      # on the lockfiles, and skip the install entirely on a cache hit.
+      # server/services/*/node_modules matters: the server postinstall installs
+      # every service's own dependencies, and the server does not boot without
+      # them. The node version is part of the key because the trees contain
+      # native addons built for the running node.
+      - name: 💾 Restore NPM dependencies cache
+        id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            front/node_modules
+            server/node_modules
+            server/services/*/node_modules
+            ~/.cache/Cypress
+          key: cypress-deps-v1-${{ runner.os }}-node${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('**/package-lock.json') }}
       - name: 📦 Install NPM packages
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         run: |
           npm ci && npm run install-server:dev
       - name: ✅ Cypress run
@@ -125,7 +213,12 @@ jobs:
           project: ./front
           command: npm run cypress:run
   build-front:
-    if: github.event.pull_request.draft == false
+    # Runs on merge queue builds (the front must build before merging) and on
+    # non-draft pull requests. The event check must be explicit: on
+    # merge_group there is no pull_request payload and GitHub expressions
+    # coerce null == false to TRUE, so the old draft-only condition would
+    # silently match every non-PR event.
+    if: github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     name: Front build
     runs-on: ubuntu-22.04
     steps:
@@ -151,13 +244,41 @@ jobs:
           name: static
           path: front/build
   docker:
-    if: github.event.pull_request.draft == false
+    # Preview images only make sense for pull requests: on merge_group there
+    # is no branch to tag the image with and nobody to comment to. The
+    # explicit event check matters (null == false is TRUE in GitHub
+    # expressions, see build-front above), otherwise this job would run on
+    # queue builds with an empty, invalid image tag.
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     needs: build-front
     name: Docker magic !
     runs-on: ubuntu-22.04
+    # Needed to push the image to the GitHub Container Registry (ghcr.io)
+    # and to comment on the pull request.
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
     steps:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v3
+      - name: 🏷️ Compute image tag from branch name
+        id: image_tag
+        # github.head_ref is attacker-controlled (any branch name), so we pass it
+        # through the environment instead of interpolating it into the shell to
+        # avoid script injection.
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          # Docker tags only allow [a-zA-Z0-9_.-] and must be 128 chars max,
+          # so we sanitize the branch name (e.g. "feature/foo" -> "feature-foo").
+          BRANCH_TAG=$(echo "$HEAD_REF" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g' | cut -c1-128)
+          # A Docker repository name must be lowercase, so we lowercase the
+          # owner/repo part as well (e.g. "GladysAssistant/Gladys").
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${REPO}-preview:${BRANCH_TAG}"
+          echo "tag=${BRANCH_TAG}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
       - name: 💽 Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: 🐳 Set up Docker Buildx
@@ -170,10 +291,60 @@ jobs:
         with:
           name: static
           path: static
-      - name: 🐳 Build AMD64 images
+      # Pushing to ghcr.io only works for pull requests opened from a branch of
+      # this repository: pull requests coming from forks only get a read-only
+      # GITHUB_TOKEN and cannot push packages nor comment.
+      - name: 🔑 Login to GitHub Container Registry
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 🐳 Build AMD64 image and push it to ghcr.io
         uses: docker/build-push-action@v3
         with:
           context: .
           file: ./docker/Dockerfile.buildx
           platforms: linux/amd64
-          push: false
+          push: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          tags: ${{ steps.image_tag.outputs.image }}
+      - name: 💬 Comment the image on the pull request
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: docker-preview-image
+          message: |
+            🐳 **A Docker image has been built for this branch and pushed to the GitHub Container Registry.**
+
+            You can test this pull request (AMD64 only) by pulling the image below:
+
+            ```
+            ${{ steps.image_tag.outputs.image }}
+            ```
+
+            For example, run it with:
+
+            ```bash
+            sudo docker run -d \
+              --log-driver json-file \
+              --log-opt max-size=10m \
+              --cgroupns=host \
+              --restart=always \
+              --privileged \
+              --network=host \
+              --name gladys-${{ steps.image_tag.outputs.tag }} \
+              -e NODE_ENV=production \
+              -e SERVER_PORT=80 \
+              -e TZ=Europe/Paris \
+              -e SQLITE_FILE_PATH=/var/lib/gladysassistant/gladys-production.db \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v /var/lib/gladysassistant:/var/lib/gladysassistant \
+              -v /dev:/dev \
+              -v /run/udev:/run/udev:ro \
+              ${{ steps.image_tag.outputs.image }}
+            ```
+
+            This comment and the image are automatically updated on every new commit pushed to this pull request.
+
+            Need an **ARM64** image (Raspberry Pi, Apple Silicon, …)? Comment `/build-arm64` on this pull request.
