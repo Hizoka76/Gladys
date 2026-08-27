@@ -8,6 +8,8 @@ import AsyncRoute from 'preact-async-route';
 import { IntlProvider } from 'preact-i18n';
 import translations from '../config/i18n';
 import actions from '../actions/main';
+import { EXTERNAL_INTEGRATION_UPDATES_REFRESH_INTERVAL_MS } from '../actions/externalIntegrationUpdates';
+import { catalogCategories } from '../config/integrations';
 
 import { getDefaultState } from '../utils/getDefaultState';
 
@@ -46,6 +48,7 @@ import NewDashboard from '../routes/dashboard/new-dashboard';
 import EditDashboard from '../routes/dashboard/edit-dashboard';
 
 import IntegrationPage from '../routes/integration';
+import DevicesListPage from '../routes/devices';
 import HistoryPage from '../routes/history';
 import ChatPage from '../routes/chat';
 import MapPage from '../routes/map';
@@ -57,6 +60,7 @@ import DuplicateScenePage from '../routes/scene/duplicate-scene';
 import EditScenePage from '../routes/scene/edit-scene';
 import ProfilePage from '../routes/profile';
 import SettingsSessionPage from '../routes/settings/settings-session';
+import SettingsSecurityPage from '../routes/settings/settings-security';
 import SettingsHousePage from '../routes/settings/settings-house';
 import SettingsUserPage from '../routes/settings/settings-users';
 import SettingsEditUserPage from '../routes/settings/settings-users/edit-user';
@@ -104,6 +108,7 @@ import MqttDevicePage from '../routes/integration/all/mqtt/device-page';
 import MqttDeviceSetupPage from '../routes/integration/all/mqtt/device-page/setup';
 import MqttSetupPage from '../routes/integration/all/mqtt/setup-page';
 import MqttDebugPage from '../routes/integration/all/mqtt/debug-page/Debug';
+import MqttDiscoveryPage from '../routes/integration/all/mqtt/discovery-page';
 
 // Zigbee2mqtt
 import Zigbee2mqttPage from '../routes/integration/all/zigbee2mqtt/device-page';
@@ -192,6 +197,15 @@ import CallMeBotPage from '../routes/integration/all/callmebot/setup-page';
 // Energy Monitoring integration
 import EnergyMonitoringIntegration from '../routes/integration/all/energy-monitoring/index';
 
+// External integrations (community integrations running in isolated Docker containers)
+import ExternalIntegrationDevicePage from '../routes/integration/all/external-integration/device-page';
+import ExternalIntegrationDiscoverPage from '../routes/integration/all/external-integration/discover-page';
+import ExternalIntegrationConfigPage from '../routes/integration/all/external-integration/config-page';
+import ExternalIntegrationSupervisionPage from '../routes/integration/all/external-integration/supervision-page';
+import ExternalIntegrationLogsPage from '../routes/integration/all/external-integration/logs-page';
+import ExternalIntegrationInstallPage from '../routes/integration/all/external-integration/install-page';
+import ExternalIntegrationOAuthCallbackPage from '../routes/integration/all/external-integration/oauth-callback-page';
+
 const defaultState = getDefaultState();
 const store = createStore(defaultState);
 
@@ -202,23 +216,35 @@ const SafeAsyncRoute = props => (
 );
 
 const AppRouter = connect(
-  'currentUrl,user,profilePicture,showDropDown,showCollapsedMenu,fullScreen',
+  'currentUrl,user,profilePicture,showDropDown,showCollapsedMenu,fullScreen,externalIntegrationsToUpdate,session,gatewayTrialDaysLeft,gatewayTrialHasPaymentMethod,gatewayTrialStripePortalKey',
   actions
 )(props => (
   <div id="app">
+    {/* The navigation rail lives OUTSIDE the Layout wrapper: it is chrome
+        shared by every page, while that wrapper carries the current page's
+        theme (the Horizon glass gate on integration URLs). Nested inside, the
+        rail inherited the theme's furniture rules on those URLs only. It is
+        fixed-positioned, so being a sibling of .page changes nothing to its
+        layout. */}
+    <Header
+      currentUrl={props.currentUrl}
+      user={props.user}
+      externalIntegrationsToUpdate={props.externalIntegrationsToUpdate}
+      fullScreen={props.fullScreen}
+      profilePicture={props.profilePicture}
+      toggleDropDown={props.toggleDropDown}
+      showDropDown={props.showDropDown}
+      closeDropDown={props.closeDropDown}
+      toggleCollapsedMenu={props.toggleCollapsedMenu}
+      showCollapsedMenu={props.showCollapsedMenu}
+      logout={props.logout}
+      session={props.session}
+      gatewayTrialDaysLeft={props.gatewayTrialDaysLeft}
+      gatewayTrialHasPaymentMethod={props.gatewayTrialHasPaymentMethod}
+      gatewayTrialStripePortalKey={props.gatewayTrialStripePortalKey}
+      refreshGatewayTrialState={props.refreshGatewayTrialState}
+    />
     <Layout currentUrl={props.currentUrl}>
-      <Header
-        currentUrl={props.currentUrl}
-        user={props.user}
-        fullScreen={props.fullScreen}
-        profilePicture={props.profilePicture}
-        toggleDropDown={props.toggleDropDown}
-        showDropDown={props.showDropDown}
-        closeDropDown={props.closeDropDown}
-        toggleCollapsedMenu={props.toggleCollapsedMenu}
-        showCollapsedMenu={props.showCollapsedMenu}
-        logout={props.logout}
-      />
       <Router onChange={props.handleRoute}>
         <Redirect path="/" to="/dashboard" />
         {/** ROUTE WHICH ARE DIFFERENT IN GATEWAY MODE */}
@@ -239,6 +265,7 @@ const AppRouter = connect(
         {config.gatewayMode && <ConfigureTwoFactorGateway path="/gateway-configure-two-factor" />}
         {config.gatewayMode && <GatewayConfirmEmail path="/confirm-email" />}
         {config.gatewayMode && <SettingsBilling path="/dashboard/settings/billing" />}
+        {config.gatewayMode && <SettingsSecurityPage path="/dashboard/settings/security" />}
         {config.gatewayMode && <SettingsGatewayUsers path="/dashboard/settings/gateway-users" />}
         {config.gatewayMode && <SettingsGatewayOpenApi path="/dashboard/settings/gateway-open-api" />}
 
@@ -256,13 +283,24 @@ const AppRouter = connect(
         <SafeAsyncRoute path="/dashboard/integration" component={IntegrationPage} />
 
         <IntegrationPage path="/dashboard/integration/favorites" category="favorites" />
-        <IntegrationPage path="/dashboard/integration/device" category="device" />
-        <IntegrationPage path="/dashboard/integration/communication" category="communication" />
-        <IntegrationPage path="/dashboard/integration/calendar" category="calendar" />
-        <IntegrationPage path="/dashboard/integration/music" category="music" />
-        <IntegrationPage path="/dashboard/integration/health" category="health" />
-        <IntegrationPage path="/dashboard/integration/weather" category="weather" />
-        <IntegrationPage path="/dashboard/integration/navigation" category="navigation" />
+        <IntegrationPage path="/dashboard/integration/updates" category="updates" />
+        <IntegrationPage path="/dashboard/integration/installed" category="installed" />
+        {/* browse categories of the catalog (docs/specs/integration-catalog-categories.md):
+            display metadata decoupled from the technical `type` still carried
+            by the integration page URLs right below */}
+        {catalogCategories.map(({ key }) => (
+          <IntegrationPage path={`/dashboard/integration/${key}`} category={key} />
+        ))}
+        {/* legacy type-based catalog views (spec §5): a 1:1 bucket goes to its
+            new shelf, a bucket split across several shelves goes to the
+            catalog root — redirecting it to one shelf would hide the others */}
+        <Redirect path="/dashboard/integration/device" to="/dashboard/integration" />
+        <Redirect path="/dashboard/integration/communication" to="/dashboard/integration" />
+        <Redirect path="/dashboard/integration/calendar" to="/dashboard/integration/services" />
+        <Redirect path="/dashboard/integration/weather" to="/dashboard/integration/environment" />
+        <Redirect path="/dashboard/integration/music" to="/dashboard/integration" />
+        <Redirect path="/dashboard/integration/health" to="/dashboard/integration" />
+        <Redirect path="/dashboard/integration/navigation" to="/dashboard/integration" />
 
         <TelegramPage path="/dashboard/integration/communication/telegram" />
         <Redirect
@@ -289,6 +327,7 @@ const AppRouter = connect(
         <MqttDeviceSetupPage path="/dashboard/integration/device/mqtt/edit/:deviceSelector" />
         <MqttSetupPage path="/dashboard/integration/device/mqtt/setup" />
         <MqttDebugPage path="/dashboard/integration/device/mqtt/debug" />
+        <MqttDiscoveryPage path="/dashboard/integration/device/mqtt/discovery" />
         <Zigbee2mqttPage path="/dashboard/integration/device/zigbee2mqtt" />
         <Zigbee2mqttDiscoverPage path="/dashboard/integration/device/zigbee2mqtt/discover" />
         <Zigbee2mqttSetupPage path="/dashboard/integration/device/zigbee2mqtt/setup" />
@@ -372,6 +411,14 @@ const AppRouter = connect(
         <LANManagerDiscoverPage path="/dashboard/integration/device/lan-manager/discover" />
         <LANManagerSettingsPage path="/dashboard/integration/device/lan-manager/config" />
 
+        <ExternalIntegrationDevicePage path="/dashboard/integration/device/external/:selector" />
+        <ExternalIntegrationDiscoverPage path="/dashboard/integration/device/external/:selector/discover" />
+        <ExternalIntegrationConfigPage path="/dashboard/integration/device/external/:selector/config" />
+        <ExternalIntegrationSupervisionPage path="/dashboard/integration/device/external/:selector/supervision" />
+        <ExternalIntegrationLogsPage path="/dashboard/integration/device/external/:selector/logs" />
+        <ExternalIntegrationInstallPage path="/dashboard/integration/device/external-install/:owner/:repo" />
+        <ExternalIntegrationOAuthCallbackPage path="/dashboard/integration/device/external/:selector/oauth-callback" />
+
         <GoogleHomeWelcomePage path="/dashboard/integration/communication/googlehome" />
         <GoogleHomeGateway path="/dashboard/integration/device/google-home/authorize" />
         <AlexaWelcomePage path="/dashboard/integration/communication/alexa" />
@@ -381,6 +428,7 @@ const AppRouter = connect(
         <EnedisGatewayUsagePoints path="/dashboard/integration/device/enedis/usage-points" />
         <EnedisGateway path="/dashboard/integration/device/enedis/redirect" />
 
+        <SafeAsyncRoute path="/dashboard/devices" component={DevicesListPage} />
         <SafeAsyncRoute path="/dashboard/history" component={HistoryPage} />
         <SafeAsyncRoute path="/dashboard/chat" component={ChatPage} />
         <SafeAsyncRoute path="/dashboard/maps" component={MapPage} />
@@ -417,11 +465,19 @@ class MainApp extends Component {
     // Listen for system preference change
     const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)');
     prefersDarkMode.addEventListener('change', this.handleSystemPreferenceChange);
+    // Gladys never pushes the "update available" flag: it is recomputed when
+    // the server refreshes the store index, so a long-opened tab only learns
+    // about a new version by asking again at the same cadence
+    this.externalIntegrationUpdatesInterval = setInterval(
+      this.props.refreshExternalIntegrationsToUpdate,
+      EXTERNAL_INTEGRATION_UPDATES_REFRESH_INTERVAL_MS
+    );
   }
 
   componentWillUnmount() {
     // Remove event listener to prevent memory leaks
     window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', this.handleSystemPreferenceChange);
+    clearInterval(this.externalIntegrationUpdatesInterval);
   }
 
   handleSystemPreferenceChange = () => {

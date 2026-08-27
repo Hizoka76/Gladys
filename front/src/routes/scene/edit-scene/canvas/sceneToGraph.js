@@ -16,7 +16,7 @@ import { ACTIONS, EVENTS } from '../../../../../../server/utils/constants';
 export const NODE_TYPES = {
   TRIGGER: 'triggerNode',
   ACTION: 'actionNode',
-  CONDITION: 'conditionNode',
+  CONDITION: 'conditionNode'
 };
 
 // Espacement utilisé par le layout automatique (sceneToGraph).
@@ -36,7 +36,7 @@ const NODE_WIDTH = 260;
 const HALF_W = NODE_WIDTH / 2;
 
 const TRIGGER_LABELS = {
-  [EVENTS.DEVICE.NEW_STATE]: 'État d\'appareil',
+  [EVENTS.DEVICE.NEW_STATE]: "État d'appareil",
   [EVENTS.TIME.CHANGED]: 'Heure planifiée',
   [EVENTS.TIME.SUNSET]: 'Coucher du soleil',
   [EVENTS.TIME.SUNRISE]: 'Lever du soleil',
@@ -54,7 +54,7 @@ const TRIGGER_LABELS = {
   [EVENTS.ALARM.PANIC]: 'Panique',
   [EVENTS.ALARM.TOO_MANY_CODES_TESTS]: 'Trop de tests de code',
   [EVENTS.SYSTEM.START]: 'Démarrage Gladys',
-  [EVENTS.MQTT.RECEIVED]: 'Message MQTT reçu',
+  [EVENTS.MQTT.RECEIVED]: 'Message MQTT reçu'
 };
 
 const TRIGGER_ICONS = {
@@ -76,7 +76,7 @@ const TRIGGER_ICONS = {
   [EVENTS.ALARM.PANIC]: 'fe-alert-triangle',
   [EVENTS.ALARM.TOO_MANY_CODES_TESTS]: 'fe-alert-triangle',
   [EVENTS.SYSTEM.START]: 'fe-power',
-  [EVENTS.MQTT.RECEIVED]: 'fe-hash',
+  [EVENTS.MQTT.RECEIVED]: 'fe-hash'
 };
 
 const ACTION_LABELS = {
@@ -93,7 +93,7 @@ const ACTION_LABELS = {
   [ACTIONS.MESSAGE.SEND_CAMERA]: 'Envoyer image caméra',
   [ACTIONS.CONDITION.IF_THEN_ELSE]: 'Si / Alors / Sinon',
   [ACTIONS.CONDITION.ONLY_CONTINUE_IF]: 'Continuer si',
-  [ACTIONS.CONDITION.CHECK_TIME]: 'Vérifier l\'heure',
+  [ACTIONS.CONDITION.CHECK_TIME]: "Vérifier l'heure",
   [ACTIONS.DEVICE.SET_VALUE]: 'Modifier appareil',
   [ACTIONS.DEVICE.GET_VALUE]: 'Lire état appareil',
   [ACTIONS.HTTP.REQUEST]: 'Requête HTTP',
@@ -104,14 +104,14 @@ const ACTION_LABELS = {
   [ACTIONS.USER.CHECK_PRESENCE]: 'Vérifier présence',
   [ACTIONS.HOUSE.IS_EMPTY]: 'Vérifier maison vide',
   [ACTIONS.HOUSE.IS_NOT_EMPTY]: 'Vérifier maison occupée',
-  [ACTIONS.AI.ASK]: 'Demander à l\'IA',
+  [ACTIONS.AI.ASK]: "Demander à l'IA",
   [ACTIONS.ALARM.SET_ALARM_MODE]: 'Définir mode alarme',
   [ACTIONS.ALARM.CHECK_ALARM_MODE]: 'Vérifier mode alarme',
   [ACTIONS.CALENDAR.IS_EVENT_RUNNING]: 'Condition sur un événement du calendrier',
   [ACTIONS.ECOWATT.CONDITION]: 'Condition Ecowatt',
   [ACTIONS.EDF_TEMPO.CONDITION]: 'Condition EDF Tempo',
   [ACTIONS.MUSIC.PLAY_NOTIFICATION]: 'Notification sonore',
-  [ACTIONS.SMS.SEND]: 'Envoyer SMS',
+  [ACTIONS.SMS.SEND]: 'Envoyer SMS'
 };
 
 const ACTION_ICONS = {
@@ -146,13 +146,12 @@ const ACTION_ICONS = {
   [ACTIONS.ECOWATT.CONDITION]: 'fe-zap',
   [ACTIONS.EDF_TEMPO.CONDITION]: 'fe-zap',
   [ACTIONS.MUSIC.PLAY_NOTIFICATION]: 'fe-music',
-  [ACTIONS.SMS.SEND]: 'fe-message-circle',
+  [ACTIONS.SMS.SEND]: 'fe-message-circle'
 };
 
 // Tronque une chaîne à max caractères pour les résumés affichés dans les nœuds.
 // Retourne null si la chaîne est vide/undefined pour simplifier les tests conditionnels.
-const truncate = (str, max = 38) =>
-  str && str.length > max ? str.substring(0, max) + '…' : str || null;
+const truncate = (str, max = 38) => (str && str.length > max ? `${str.substring(0, max)}…` : str || null);
 
 // Retourne le libellé français du déclencheur, ou son type brut en fallback.
 export function getTriggerLabel(trigger) {
@@ -173,7 +172,7 @@ export function getTriggerSummary(trigger) {
           return trigger.time ? `Chaque semaine à ${trigger.time}` : 'Chaque semaine';
         case 'every-month':
           return trigger.day_of_the_month
-            ? `Chaque mois le ${trigger.day_of_the_month}${trigger.time ? ' à ' + trigger.time : ''}`
+            ? `Chaque mois le ${trigger.day_of_the_month}${trigger.time ? ` à ${trigger.time}` : ''}`
             : 'Chaque mois';
         case 'interval': {
           const UNIT_FR = { second: 'seconde(s)', minute: 'minute(s)', hour: 'heure(s)' };
@@ -182,9 +181,7 @@ export function getTriggerSummary(trigger) {
             : null;
         }
         case 'custom-time':
-          return trigger.date
-            ? `${trigger.date}${trigger.time ? ' à ' + trigger.time : ''}`
-            : null;
+          return trigger.date ? `${trigger.date}${trigger.time ? ` à ${trigger.time}` : ''}` : null;
         default:
           return null;
       }
@@ -216,8 +213,9 @@ export function getTriggerSummary(trigger) {
     }
     case EVENTS.CALENDAR.EVENT_IS_COMING: {
       const evName = trigger.calendar_event_name ? truncate(trigger.calendar_event_name) : null;
-      const cals = trigger.calendars_label
-        || (trigger.calendars && trigger.calendars.length > 0
+      const cals =
+        trigger.calendars_label ||
+        (trigger.calendars && trigger.calendars.length > 0
           ? `${trigger.calendars.length} calendrier${trigger.calendars.length > 1 ? 's' : ''}`
           : null);
       if (evName && cals) return [evName, cals];
@@ -251,7 +249,7 @@ export function getActionSummary(action) {
           millisecond: 'ms',
           second: 'seconde',
           minute: 'minute',
-          hour: 'heure',
+          hour: 'heure'
         };
         const unitFr = UNIT_FR[action.unit] || action.unit || 's';
         const plural = action.value > 1 && unitFr !== 'ms' ? 's' : '';
@@ -343,13 +341,14 @@ export function getActionSummary(action) {
     case ACTIONS.CALENDAR.IS_EVENT_RUNNING: {
       const COMPARATOR_FR = {
         'is-exactly': 'est exactement',
-        'contains': 'contient',
+        contains: 'contient',
         'starts-with': 'commence par',
         'ends-with': 'se termine par',
-        'has-any-name': 'n\'importe quel nom',
+        'has-any-name': "n'importe quel nom"
       };
-      const cals = action.calendars_label
-        || (action.calendars && action.calendars.length > 0
+      const cals =
+        action.calendars_label ||
+        (action.calendars && action.calendars.length > 0
           ? `${action.calendars.length} calendrier${action.calendars.length > 1 ? 's' : ''}`
           : null);
       const line1 = cals ? `Calendrier ${truncate(cals, 28)}` : null;
@@ -395,7 +394,7 @@ const CONDITION_ACTION_SET = new Set([
   ACTIONS.CONDITION.CHECK_TIME,
   ACTIONS.HOUSE.IS_EMPTY,
   ACTIONS.HOUSE.IS_NOT_EMPTY,
-  ACTIONS.CALENDAR.IS_EVENT_RUNNING,
+  ACTIONS.CALENDAR.IS_EVENT_RUNNING
 ]);
 
 // Vrai si l'action doit être rendue comme un nœud condition (ConditionNode).
@@ -426,7 +425,7 @@ const outerEdge = (id, source, target, sourceHandle, color = '#94a3b8') => ({
   type: 'smoothstep',
   animated: false,
   ...(color !== '#94a3b8' ? { markerEnd: { type: 'arrowclosed', color } } : {}),
-  style: { stroke: color, strokeWidth: 2 },
+  style: { stroke: color, strokeWidth: 2 }
 });
 
 // branchEdge : arête colorée depuis un handle nommé (then → vert, else → rouge).
@@ -438,7 +437,7 @@ const branchEdge = (id, source, sourceHandle, target, color) => ({
   type: 'smoothstep',
   animated: false,
   markerEnd: { type: 'arrowclosed', color },
-  style: { stroke: color, strokeWidth: 2 },
+  style: { stroke: color, strokeWidth: 2 }
 });
 
 // Construit un objet nœud React Flow pour une action, qu'elle soit dans le flux
@@ -453,8 +452,8 @@ function makeActionNode(id, action, position, extraData) {
       action,
       label: getActionLabel(action),
       icon: getActionIcon(action),
-      ...extraData,
-    },
+      ...extraData
+    }
   };
 }
 
@@ -471,7 +470,9 @@ export function checkGraphIssues(nodes, edges) {
   const warnings = [];
 
   const outgoing = {};
-  nodes.forEach(n => { outgoing[n.id] = []; });
+  nodes.forEach(n => {
+    outgoing[n.id] = [];
+  });
   edges.forEach(e => {
     if (outgoing[e.source]) {
       outgoing[e.source].push({ target: e.target, handle: e.sourceHandle || null });
@@ -534,7 +535,9 @@ export function checkGraphIssues(nodes, edges) {
   // sont dans une relation ancêtre/descendant : ex. A→C et B→C avec A→B.
   // Dans ce cas C ne peut pas avoir une position unique dans la séquence de groupes.
   const incoming = {};
-  nodes.forEach(n => { incoming[n.id] = []; });
+  nodes.forEach(n => {
+    incoming[n.id] = [];
+  });
   edges.forEach(e => {
     if (incoming[e.target]) {
       incoming[e.target].push({ source: e.source, handle: e.sourceHandle || null });
@@ -568,7 +571,7 @@ export function checkGraphIssues(nodes, edges) {
             type: 'convergence',
             blocking: true,
             label: (node.data && node.data.label) || '?',
-            nodeIds: [node.id],
+            nodeIds: [node.id]
           });
           return;
         }
@@ -580,9 +583,13 @@ export function checkGraphIssues(nodes, edges) {
   // Suit toutes les arêtes (peu importe le handle) pour couvrir les boucles
   // qui passeraient par des branches then/else.
   // WHITE = non visité, GRAY = en cours de traitement, BLACK = terminé.
-  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const WHITE = 0,
+    GRAY = 1,
+    BLACK = 2;
   const color = {};
-  nodes.forEach(n => { color[n.id] = WHITE; });
+  nodes.forEach(n => {
+    color[n.id] = WHITE;
+  });
 
   let cycleDetected = false;
   let cycleNodeIds = [];
@@ -602,7 +609,9 @@ export function checkGraphIssues(nodes, edges) {
     pathStack.pop();
     color[id] = BLACK;
   }
-  nodes.forEach(n => { if (color[n.id] === WHITE) dfs(n.id); });
+  nodes.forEach(n => {
+    if (color[n.id] === WHITE) dfs(n.id);
+  });
 
   if (cycleDetected) {
     const firstNode = nodes.find(n => n.id === cycleNodeIds[0]);
@@ -641,8 +650,8 @@ export function sceneToGraph(scene) {
         trigger,
         triggerIndex: idx,
         label: getTriggerLabel(trigger),
-        icon: getTriggerIcon(trigger),
-      },
+        icon: getTriggerIcon(trigger)
+      }
     });
   });
 
@@ -657,10 +666,7 @@ export function sceneToGraph(scene) {
       groupY.push(y);
       const maxDepth = actionGroup.reduce((m, a) => {
         if (!isIfThenElse(a)) return m;
-        return Math.max(m, Math.max(
-          a.then ? a.then.length : 0,
-          a.else ? a.else.length : 0
-        ));
+        return Math.max(m, Math.max(a.then ? a.then.length : 0, a.else ? a.else.length : 0));
       }, 0);
       // Pour les groupes avec branches : V_BRANCH_STEP * maxDepth (hauteur des branches)
       // + V_SPACING (marge vers le groupe suivant), ce qui garde l'arête "Suite" courte.
@@ -671,9 +677,7 @@ export function sceneToGraph(scene) {
   // Axe horizontal partagé par tous les groupes du flux principal et leurs branches.
   // Calculé depuis la ligne des déclencheurs : un seul déclencheur reste centré
   // au-dessus du premier nœud ; plusieurs se répartissent symétriquement.
-  const flowCenterX = triggers.length > 0
-    ? START_X + (triggers.length - 1) * H_SPACING / 2
-    : START_X;
+  const flowCenterX = triggers.length > 0 ? START_X + ((triggers.length - 1) * H_SPACING) / 2 : START_X;
 
   // IDs des nœuds de la rangée précédente (déclencheurs au départ) — utilisés
   // pour tracer les arêtes vers la rangée courante.
@@ -698,9 +702,11 @@ export function sceneToGraph(scene) {
     const subThen = action.then || [];
     const thenBound = parentCenterX - H_SPACING;
     const thenCenter = subThen.reduce(
-      (minC, g) => Math.min(minC, thenBound - (g.length - 1) * H_SPACING / 2), thenBound
+      (minC, g) => Math.min(minC, thenBound - ((g.length - 1) * H_SPACING) / 2),
+      thenBound
     );
-    let pThenIds = null, pThenActs = null;
+    let pThenIds = null,
+      pThenActs = null;
     subThen.forEach((grp, si) => {
       const sy = parentY + V_BRANCH_STEP * (1 + si);
       const cnt = grp.length;
@@ -708,7 +714,9 @@ export function sceneToGraph(scene) {
       grp.forEach((act, ai) => {
         const nid = `${parentId}-then-${si}-${ai}`;
         const nx = thenCenter + H_SPACING * (ai - (cnt - 1) / 2);
-        nodes.push(makeActionNode(nid, act, { x: nx - HALF_W, y: sy }, { isBranch: true, path: `${basePath}.then.${si}.${ai}` }));
+        nodes.push(
+          makeActionNode(nid, act, { x: nx - HALF_W, y: sy }, { isBranch: true, path: `${basePath}.then.${si}.${ai}` })
+        );
         sIds.push(nid);
         addBranchNodes(nid, nx, sy, `${basePath}.then.${si}.${ai}`, act);
       });
@@ -720,16 +728,19 @@ export function sceneToGraph(scene) {
           sIds.forEach(nid => edges.push(outerEdge(`e-${pid}-${nid}`, pid, nid, undefined, ec)));
         });
       }
-      pThenIds = sIds; pThenActs = grp;
+      pThenIds = sIds;
+      pThenActs = grp;
     });
 
     // ── Sous-branche else ──
     const subElse = action.else || [];
     const elseStart = parentCenterX + H_SPACING;
     const elseCenter = subElse.reduce(
-      (maxC, g) => Math.max(maxC, elseStart + (g.length - 1) * H_SPACING / 2), elseStart
+      (maxC, g) => Math.max(maxC, elseStart + ((g.length - 1) * H_SPACING) / 2),
+      elseStart
     );
-    let pElseIds = null, pElseActs = null;
+    let pElseIds = null,
+      pElseActs = null;
     subElse.forEach((grp, si) => {
       const sy = parentY + V_BRANCH_STEP * (1 + si);
       const cnt = grp.length;
@@ -737,7 +748,9 @@ export function sceneToGraph(scene) {
       grp.forEach((act, ai) => {
         const nid = `${parentId}-else-${si}-${ai}`;
         const nx = elseCenter + H_SPACING * (ai - (cnt - 1) / 2);
-        nodes.push(makeActionNode(nid, act, { x: nx - HALF_W, y: sy }, { isBranch: true, path: `${basePath}.else.${si}.${ai}` }));
+        nodes.push(
+          makeActionNode(nid, act, { x: nx - HALF_W, y: sy }, { isBranch: true, path: `${basePath}.else.${si}.${ai}` })
+        );
         sIds.push(nid);
         addBranchNodes(nid, nx, sy, `${basePath}.else.${si}.${ai}`, act);
       });
@@ -749,7 +762,8 @@ export function sceneToGraph(scene) {
           sIds.forEach(nid => edges.push(outerEdge(`e-${pid}-${nid}`, pid, nid, undefined, ec)));
         });
       }
-      pElseIds = sIds; pElseActs = grp;
+      pElseIds = sIds;
+      pElseActs = grp;
     });
   }
 
@@ -758,7 +772,7 @@ export function sceneToGraph(scene) {
     const rowY = groupY[groupIdx];
     // Origine X du groupe : centré sur flowCenterX quelle que soit la largeur du groupe,
     // de sorte que tous les groupes du flux principal partagent le même axe vertical.
-    const groupStartX = flowCenterX - (actionGroup.length - 1) * H_SPACING / 2;
+    const groupStartX = flowCenterX - ((actionGroup.length - 1) * H_SPACING) / 2;
 
     actionGroup.forEach((action, actionIdx) => {
       const id = `action-${groupIdx}-${actionIdx}`;
@@ -766,11 +780,16 @@ export function sceneToGraph(scene) {
       actionById[id] = action;
 
       nodes.push(
-        makeActionNode(id, action, { x: condX - HALF_W, y: rowY }, {
-          groupIndex: groupIdx,
-          actionIndex: actionIdx,
-          path: `${groupIdx}.${actionIdx}`,
-        })
+        makeActionNode(
+          id,
+          action,
+          { x: condX - HALF_W, y: rowY },
+          {
+            groupIndex: groupIdx,
+            actionIndex: actionIdx,
+            path: `${groupIdx}.${actionIdx}`
+          }
+        )
       );
 
       // ── Nœuds de branche pour Si/Alors/Sinon ───────────────────
@@ -790,9 +809,10 @@ export function sceneToGraph(scene) {
         // restent centrées au même X (parent centré au-dessus de ses enfants).
         const thenFinalCenter = thenGroups.reduce((minC, group) => {
           const count = group.length;
-          return Math.min(minC, thenMaxX - (count - 1) * H_SPACING / 2);
+          return Math.min(minC, thenMaxX - ((count - 1) * H_SPACING) / 2);
         }, thenMaxX);
-        let prevThenIds = null, prevThenActs = null;
+        let prevThenIds = null,
+          prevThenActs = null;
         thenGroups.forEach((thenGroup, stepIdx) => {
           const stepY = rowY + V_BRANCH_STEP * (1 + stepIdx);
           const count = thenGroup.length;
@@ -800,24 +820,30 @@ export function sceneToGraph(scene) {
           thenGroup.forEach((thenAction, aIdx) => {
             const thenId = `${id}-then-${stepIdx}-${aIdx}`;
             const thenX = thenFinalCenter + H_SPACING * (aIdx - (count - 1) / 2);
-            nodes.push(makeActionNode(thenId, thenAction, { x: thenX - HALF_W, y: stepY }, {
-              isBranch: true,
-              path: `${groupIdx}.${actionIdx}.then.${stepIdx}.${aIdx}`,
-            }));
+            nodes.push(
+              makeActionNode(
+                thenId,
+                thenAction,
+                { x: thenX - HALF_W, y: stepY },
+                {
+                  isBranch: true,
+                  path: `${groupIdx}.${actionIdx}.then.${stepIdx}.${aIdx}`
+                }
+              )
+            );
             stepIds.push(thenId);
             addBranchNodes(thenId, thenX, stepY, `${groupIdx}.${actionIdx}.then.${stepIdx}.${aIdx}`, thenAction);
           });
           if (stepIdx === 0) {
-            stepIds.forEach(thenId =>
-              edges.push(branchEdge(`e-${id}-then-${thenId}`, id, 'then', thenId, '#10b981'))
-            );
+            stepIds.forEach(thenId => edges.push(branchEdge(`e-${id}-then-${thenId}`, id, 'then', thenId, '#10b981')));
           } else {
             prevThenIds.forEach((prevId, pi) => {
               const ec = edgeColorForAction(prevThenActs && prevThenActs[pi]);
               stepIds.forEach(thenId => edges.push(outerEdge(`e-${prevId}-${thenId}`, prevId, thenId, undefined, ec)));
             });
           }
-          prevThenIds = stepIds; prevThenActs = thenGroup;
+          prevThenIds = stepIds;
+          prevThenActs = thenGroup;
         });
 
         // Branche "Non" (else) — placée à DROITE de tous les nœuds frères du groupe.
@@ -829,9 +855,10 @@ export function sceneToGraph(scene) {
         // restent centrées au même X (parent centré au-dessus de ses enfants).
         const elseFinalCenter = elseGroups.reduce((maxC, group) => {
           const count = group.length;
-          return Math.max(maxC, elseStartX + (count - 1) * H_SPACING / 2);
+          return Math.max(maxC, elseStartX + ((count - 1) * H_SPACING) / 2);
         }, elseStartX);
-        let prevElseIds = null, prevElseActs = null;
+        let prevElseIds = null,
+          prevElseActs = null;
         elseGroups.forEach((elseGroup, stepIdx) => {
           const stepY = rowY + V_BRANCH_STEP * (1 + stepIdx);
           const count = elseGroup.length;
@@ -839,24 +866,30 @@ export function sceneToGraph(scene) {
           elseGroup.forEach((elseAction, aIdx) => {
             const elseId = `${id}-else-${stepIdx}-${aIdx}`;
             const elseX = elseFinalCenter + H_SPACING * (aIdx - (count - 1) / 2);
-            nodes.push(makeActionNode(elseId, elseAction, { x: elseX - HALF_W, y: stepY }, {
-              isBranch: true,
-              path: `${groupIdx}.${actionIdx}.else.${stepIdx}.${aIdx}`,
-            }));
+            nodes.push(
+              makeActionNode(
+                elseId,
+                elseAction,
+                { x: elseX - HALF_W, y: stepY },
+                {
+                  isBranch: true,
+                  path: `${groupIdx}.${actionIdx}.else.${stepIdx}.${aIdx}`
+                }
+              )
+            );
             stepIds.push(elseId);
             addBranchNodes(elseId, elseX, stepY, `${groupIdx}.${actionIdx}.else.${stepIdx}.${aIdx}`, elseAction);
           });
           if (stepIdx === 0) {
-            stepIds.forEach(elseId =>
-              edges.push(branchEdge(`e-${id}-else-${elseId}`, id, 'else', elseId, '#ef4444'))
-            );
+            stepIds.forEach(elseId => edges.push(branchEdge(`e-${id}-else-${elseId}`, id, 'else', elseId, '#ef4444')));
           } else {
             prevElseIds.forEach((prevId, pi) => {
               const ec = edgeColorForAction(prevElseActs && prevElseActs[pi]);
               stepIds.forEach(elseId => edges.push(outerEdge(`e-${prevId}-${elseId}`, prevId, elseId, undefined, ec)));
             });
           }
-          prevElseIds = stepIds; prevElseActs = elseGroup;
+          prevElseIds = stepIds;
+          prevElseActs = elseGroup;
         });
       }
 
@@ -873,10 +906,12 @@ export function sceneToGraph(scene) {
       const color = isIfThenElse(srcAction)
         ? '#94a3b8'
         : isCalendarCondition(srcAction)
-          ? (srcAction.stop_scene_if_event_found === true ? '#ef4444' : '#10b981')
-          : isConditionAction(srcAction)
-            ? '#10b981'
-            : '#94a3b8';
+        ? srcAction.stop_scene_if_event_found === true
+          ? '#ef4444'
+          : '#10b981'
+        : isConditionAction(srcAction)
+        ? '#10b981'
+        : '#94a3b8';
       currentIds.forEach(targetId => {
         edges.push(outerEdge(`e-${sourceId}-${targetId}`, sourceId, targetId, sh, color));
       });

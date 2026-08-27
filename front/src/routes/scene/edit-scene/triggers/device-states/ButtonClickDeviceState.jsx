@@ -1,5 +1,5 @@
 import { Component, Fragment } from 'preact';
-import Select from '../../SceneSelect';
+import Select from '../../../../../components/form/Select';
 import get from 'get-value';
 
 import { BUTTON_STATUS } from '../../../../../../../server/utils/constants';

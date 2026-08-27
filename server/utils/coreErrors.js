@@ -69,6 +69,18 @@ class AbortScene extends Error {
   }
 }
 
+// A scene stopped on purpose. Subclasses AbortScene so existing handling still
+// applies, but stays distinguishable from "condition not verified", which the
+// if/while actions turn into a false condition instead of propagating.
+class SceneStopped extends AbortScene {}
+
+class ExternalIntegrationUnavailableError extends Error {
+  constructor(message) {
+    super();
+    this.message = message;
+  }
+}
+
 module.exports = {
   PasswordNotMatchingError,
   NotFoundError,
@@ -77,7 +89,9 @@ module.exports = {
   NoValuesFoundError,
   PlatformNotCompatible,
   AbortScene,
+  SceneStopped,
   ConflictError,
   ForbiddenError,
   TooManyRequests,
+  ExternalIntegrationUnavailableError,
 };
