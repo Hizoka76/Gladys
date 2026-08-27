@@ -5,10 +5,11 @@ import { Link } from 'preact-router/match';
 import get from 'get-value';
 import actions from '../../../actions/gateway';
 import GatewayLoginForm from '../../../components/gateway/GatewayLoginForm';
-import { SYSTEM_VARIABLE_NAMES } from '../../../../../server/utils/constants';
+import AuthLayout from '../../../components/auth/AuthLayout';
 import RestoreBackup from './RestoreBackup';
 import SetRestoreKey from './SetRestoreKey';
 import RestoreInProgress from './RestoreInProgress';
+import LocalAccountAlternative from './LocalAccountAlternative';
 import linkState from 'linkstate';
 
 class CreateAccountGladysGateway extends Component {
@@ -16,16 +17,11 @@ class CreateAccountGladysGateway extends Component {
     step: 1,
     backupKey: ''
   };
-  login = async e => {
-    e.preventDefault();
-    await this.props.tempSignupForRestore(this.props.user.language);
-    await this.props.login(e);
-  };
   saveBackupKey = async () => {
-    await this.setState({ loading: true, error: false });
+    this.setState({ loading: true, error: false });
     try {
-      await this.props.httpClient.post(`/api/v1/variable/${SYSTEM_VARIABLE_NAMES.GLADYS_GATEWAY_BACKUP_KEY}`, {
-        value: this.state.backupKey
+      await this.props.httpClient.post('/api/v1/gateway/backup-key', {
+        backup_key: this.state.backupKey
       });
       await this.props.getBackups();
       this.setState({ loading: false, step: 3 });
@@ -34,35 +30,45 @@ class CreateAccountGladysGateway extends Component {
     }
   };
   restoreBackup = async fileUrl => {
-    await this.setState({
+    this.setState({
       step: 4,
       gatewayRestoreErrored: false
     });
     try {
-      this.props.httpClient.post('/api/v1/gateway/backup/restore', {
+      // The POST must be awaited before polling the restore status, otherwise
+      // the first poll can reach the server before the restore has started and
+      // be misread as a finished restore.
+      await this.props.httpClient.post('/api/v1/gateway/backup/restore', {
         file_url: fileUrl
       });
       this.getRestoreStatus();
     } catch (e) {
-      await this.setState({ restoreFailed: true });
+      this.setState({ gatewayRestoreErrored: true });
     }
   };
   getRestoreStatus = async () => {
     try {
       const restoreStatus = await this.props.httpClient.get('/api/v1/gateway/backup/restore/status');
 
-      if (restoreStatus.restore_in_progress) {
-        setTimeout(() => this.getRestoreStatus(), 1000);
-      } else if (restoreStatus.restore_errored) {
+      if (restoreStatus.restore_errored) {
         this.setState({
           gatewayRestoreErrored: true
         });
       } else {
-        window.location = '/dashboard';
+        // A successful restore keeps "restore_in_progress" true until Gladys
+        // shuts down, so we keep polling: the end of the restore is detected
+        // below, when the restarted instance answers with a 4xx because it
+        // became configured.
+        setTimeout(() => this.getRestoreStatus(), 1000);
       }
     } catch (e) {
       const status = get(e, 'response.status');
-      if (status === 401) {
+      // Once the backup is restored and Gladys has restarted, the instance is
+      // configured again so this route requires authentication: any 4xx here
+      // means the restore is finished. Note that without a session, the 401
+      // is surfaced as a 400 (the http client fails to refresh a non-existent
+      // access token).
+      if (status >= 400 && status < 500) {
         window.location = '/dashboard';
       } else {
         setTimeout(() => this.getRestoreStatus(), 1000);
@@ -94,53 +100,61 @@ class CreateAccountGladysGateway extends Component {
   render() {
     const { step, backupKey, loading, error, gatewayRestoreErrored } = this.state;
     return (
-      <div class="page">
-        <div class="page-single mt-6">
-          <div class="container">
-            <div class="row">
-              {step === 1 && (
-                <div class="col col-login mx-auto">
-                  <Link href="/signup" class="btn btn-secondary btn-sm mb-4 mt-6">
-                    <Text id="global.backButton" />
-                  </Link>
+      <AuthLayout size={step === 3 ? 'medium' : undefined}>
+        {step === 1 && (
+          <div>
+            <Link href="/signup" class="btn btn-secondary btn-sm mb-4">
+              <Text id="global.backButton" />
+            </Link>
 
-                  <GatewayLoginForm {...this.props} external_forgot_password login={this.login} />
-                </div>
-              )}
-              {step === 2 && (
-                <div class="col col-login mx-auto">
-                  <SetRestoreKey
-                    {...this.props}
-                    backupKey={backupKey}
-                    loading={loading}
-                    error={error}
-                    updateBackupKey={linkState(this, 'backupKey')}
-                    saveBackupKey={this.saveBackupKey}
-                  />
-                </div>
-              )}
-              {step === 3 && !this.props.gatewayRestoreInProgress && (
-                <div class="col-md-6 mx-auto">
-                  <RestoreBackup {...this.props} restoreBackup={this.restoreBackup} />
-                </div>
-              )}
-              {step === 4 && (
-                <div class="col-md-4 mx-auto">
-                  <RestoreInProgress
-                    gatewayRestoreErrored={gatewayRestoreErrored}
-                    changeStepToUpdateRestoreKey={this.changeStepToUpdateRestoreKey}
-                  />
-                </div>
-              )}
+            <GatewayLoginForm {...this.props} external_forgot_password />
+          </div>
+        )}
+        {step === 2 && (
+          <div>
+            <Link href="/signup" class="btn btn-secondary btn-sm mb-4">
+              <Text id="global.backButton" />
+            </Link>
+            <SetRestoreKey
+              {...this.props}
+              backupKey={backupKey}
+              loading={loading}
+              error={error}
+              updateBackupKey={linkState(this, 'backupKey')}
+              saveBackupKey={this.saveBackupKey}
+            />
+            <div class="mt-4">
+              <LocalAccountAlternative />
             </div>
           </div>
-        </div>
-      </div>
+        )}
+        {step === 3 && !this.props.gatewayRestoreInProgress && (
+          <div>
+            <Link href="/signup" class="btn btn-secondary btn-sm mb-4">
+              <Text id="global.backButton" />
+            </Link>
+            <RestoreBackup
+              {...this.props}
+              restoreBackup={this.restoreBackup}
+              changeStepToUpdateRestoreKey={this.changeStepToUpdateRestoreKey}
+            />
+            <div class="mt-4">
+              <LocalAccountAlternative />
+            </div>
+          </div>
+        )}
+        {step === 4 && (
+          <RestoreInProgress
+            gatewayRestoreErrored={gatewayRestoreErrored}
+            changeStepToUpdateRestoreKey={this.changeStepToUpdateRestoreKey}
+          />
+        )}
+      </AuthLayout>
     );
   }
 }
 
 export default connect(
-  'user,session,httpClient,gatewayBackups,gatewayStatus,gatewayLoginEmail,gatewayLoginPassword,gatewayLoginTwoFactorCode,gatewayGetStatusStatus,displayGatewayLogin,gatewayLoginStatus,gatewayLoginStep2,gatewayUsersKeys,gatewayInstanceKeys,gatewayGetKeysStatus,gatewayDisconnectStatus,gatewayBackupKey,gatewaySaveBackupKeyStatus,displayConnectedSuccess',
+  'user,session,httpClient,gatewayBackups,gatewayGetBackupsStatus,gatewayStatus,gatewayLoginEmail,gatewayLoginPassword,gatewayLoginTwoFactorCode,gatewayGetStatusStatus,displayGatewayLogin,gatewayLoginStatus,gatewayLoginStep2,gatewayUsersKeys,gatewayInstanceKeys,gatewayGetKeysStatus,gatewayDisconnectStatus,gatewayBackupKey,gatewaySaveBackupKeyStatus,displayConnectedSuccess',
   actions
 )(CreateAccountGladysGateway);

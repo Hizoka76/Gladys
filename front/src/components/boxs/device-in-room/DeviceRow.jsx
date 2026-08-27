@@ -3,6 +3,7 @@ import get from 'get-value';
 import { DEVICE_FEATURE_TYPES, DEVICE_FEATURE_CATEGORIES } from '../../../../../server/utils/constants';
 
 import { getDeviceName } from '../../../utils/device';
+import { TelevisionPushButtonFeatureTypes } from '../../../utils/consts';
 
 import BinaryDeviceFeature from './device-features/BinaryDeviceFeature';
 import ColorDeviceFeature from './device-features/ColorDeviceFeature';
@@ -13,15 +14,28 @@ import NumberDeviceFeature from './device-features/NumberDeviceFeature';
 import CoverDeviceFeature from './device-features/CoverDeviceFeature';
 import SetpointDeviceFeature from './device-features/SetpointDeviceFeature';
 import AirConditioningModeDeviceFeature from './device-features/AirConditioningModeDeviceFeature';
+import ThermostatModeDeviceFeature from './device-features/ThermostatModeDeviceFeature';
 import FanModeDeviceFeature from './device-features/FanModeDeviceFeature';
 import FanLabeledSelectDeviceFeature from './device-features/FanLabeledSelectDeviceFeature';
+import AirConditioningFanSpeedDeviceFeature from './device-features/AirConditioningFanSpeedDeviceFeature';
+import AirConditioningSwingDeviceFeature from './device-features/AirConditioningSwingDeviceFeature';
 import PilotWireModeDeviceFeature from './device-features/PilotWireModeDeviceFeature';
 import LMHVolumeDeviceFeature from './device-features/LMHVolumeDeviceFeature';
+import SirenAlarmModeDeviceFeature from './device-features/SirenAlarmModeDeviceFeature';
 import PushDeviceFeature from './device-features/PushDeviceFeature';
 import VacuumCleanerDockDeviceFeature from './device-features/VacuumCleanerDockDeviceFeature';
+import CameraMoveDeviceFeature from './device-features/CameraMoveDeviceFeature';
+import CameraPresetDeviceFeature from './device-features/CameraPresetDeviceFeature';
 import VacuumCleanerModeDeviceFeature from './device-features/VacuumCleanerModeDeviceFeature';
 import VacuumCleanerCleanModeDeviceFeature from './device-features/VacuumCleanerCleanModeDeviceFeature';
+import WaterHeaterModeDeviceFeature from './device-features/WaterHeaterModeDeviceFeature';
+import TextSelectDeviceFeature from './device-features/TextSelectDeviceFeature';
 
+// DeviceRow is the per-FEATURE registry, and it is not only used by the dashboard widgets: the
+// MQTT catalog preview renders one mock feature through it. The light entries therefore stay,
+// even though the widgets no longer reach most of them — DeviceCard groups the light features of
+// a same device into one LightDeviceFeature row before this map is consulted, and only what it
+// leaves ungrouped (a light with no device attached) falls back here.
 const ROW_TYPE_BY_FEATURE_TYPE = {
   [DEVICE_FEATURE_TYPES.LIGHT.BINARY]: BinaryDeviceFeature,
   [DEVICE_FEATURE_TYPES.LIGHT.COLOR]: ColorDeviceFeature,
@@ -45,10 +59,15 @@ const ROW_TYPE_BY_FEATURE_TYPE = {
   [DEVICE_FEATURE_TYPES.FAN.ROCK_SETTING]: FanLabeledSelectDeviceFeature,
   [DEVICE_FEATURE_TYPES.FAN.WIND_SETTING]: FanLabeledSelectDeviceFeature,
   [DEVICE_FEATURE_TYPES.FAN.AIRFLOW_DIRECTION]: FanLabeledSelectDeviceFeature,
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.FAN_SPEED]: AirConditioningFanSpeedDeviceFeature,
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_HORIZONTAL]: AirConditioningSwingDeviceFeature,
+  [DEVICE_FEATURE_TYPES.AIR_CONDITIONING.SWING_VERTICAL]: AirConditioningSwingDeviceFeature,
   [DEVICE_FEATURE_TYPES.HEATER.PILOT_WIRE_MODE]: PilotWireModeDeviceFeature,
   [DEVICE_FEATURE_TYPES.LOCK.BINARY]: BinaryDeviceFeature,
   [DEVICE_FEATURE_TYPES.SIREN.LMH_VOLUME]: LMHVolumeDeviceFeature,
   [DEVICE_FEATURE_TYPES.SIREN.MELODY]: NumberDeviceFeature,
+  [DEVICE_FEATURE_TYPES.SIREN.BINARY]: BinaryDeviceFeature,
+  [DEVICE_FEATURE_TYPES.SIREN.ALARM_MODE]: SirenAlarmModeDeviceFeature,
   [DEVICE_FEATURE_TYPES.DURATION.DECIMAL]: MultiLevelDeviceFeature,
   [DEVICE_FEATURE_TYPES.BUTTON.PUSH]: PushDeviceFeature,
   [DEVICE_FEATURE_TYPES.SWITCH.TARGET_CURRENT]: SetpointDeviceFeature,
@@ -61,7 +80,8 @@ const ROW_TYPE_BY_FEATURE_TYPE = {
   [DEVICE_FEATURE_TYPES.ELECTRICAL_VEHICLE_COMMAND.LOCK]: BinaryDeviceFeature,
   [DEVICE_FEATURE_TYPES.VACUUM_CLEANER.DOCK]: VacuumCleanerDockDeviceFeature,
   [DEVICE_FEATURE_TYPES.VACUUM_CLEANER.RUN_MODE]: VacuumCleanerModeDeviceFeature,
-  [DEVICE_FEATURE_TYPES.VACUUM_CLEANER.CLEAN_MODE]: VacuumCleanerCleanModeDeviceFeature
+  [DEVICE_FEATURE_TYPES.VACUUM_CLEANER.CLEAN_MODE]: VacuumCleanerCleanModeDeviceFeature,
+  [DEVICE_FEATURE_TYPES.WATER_VALVE.AUTO_CLOSE_WHEN_WATER_SHORTAGE]: BinaryDeviceFeature
 };
 
 // Some feature type strings are shared across categories (e.g. AIR_CONDITIONING.MODE and FAN.MODE
@@ -75,6 +95,36 @@ const ROW_TYPE_BY_CATEGORY_AND_TYPE = {
   },
   [DEVICE_FEATURE_CATEGORIES.FAN]: {
     [DEVICE_FEATURE_TYPES.FAN.MODE]: FanModeDeviceFeature
+  },
+  [DEVICE_FEATURE_CATEGORIES.CAMERA]: {
+    // The "enabled" gate is a plain on/off control (docs/specs/camera-enable-disable.md)
+    [DEVICE_FEATURE_TYPES.CAMERA.ENABLED]: BinaryDeviceFeature,
+    [DEVICE_FEATURE_TYPES.CAMERA.MOVE]: CameraMoveDeviceFeature,
+    [DEVICE_FEATURE_TYPES.CAMERA.PRESET]: CameraPresetDeviceFeature
+  },
+  // `mode` and `target-temperature` are strings other categories already own, so routing them from
+  // the type-keyed map would let declaration order decide the winner for every category. `binary`
+  // and `boost` would resolve correctly there too; they are kept here so the whole category reads
+  // in one place.
+  [DEVICE_FEATURE_CATEGORIES.WATER_HEATER]: {
+    [DEVICE_FEATURE_TYPES.WATER_HEATER.BINARY]: BinaryDeviceFeature,
+    [DEVICE_FEATURE_TYPES.WATER_HEATER.MODE]: WaterHeaterModeDeviceFeature,
+    [DEVICE_FEATURE_TYPES.WATER_HEATER.TARGET_TEMPERATURE]: SetpointDeviceFeature,
+    [DEVICE_FEATURE_TYPES.WATER_HEATER.BOOST]: BinaryDeviceFeature
+  },
+  // Television remote-control orders (play, pause, channel up, ...) are write-only commands: they
+  // are displayed as push buttons instead of falling back to a read-only sensor row.
+  [DEVICE_FEATURE_CATEGORIES.TELEVISION]: TelevisionPushButtonFeatureTypes.reduce(
+    (acc, type) => ({ ...acc, [type]: PushDeviceFeature }),
+    {}
+  ),
+  [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.MODE]: ThermostatModeDeviceFeature
+  },
+  // A dynamic select: its options are string values discovered on the appliance by the
+  // integration (installed TV apps, HDMI sources...), declared through supported_options
+  [DEVICE_FEATURE_CATEGORIES.TEXT]: {
+    [DEVICE_FEATURE_TYPES.TEXT.SELECT]: TextSelectDeviceFeature
   }
 };
 

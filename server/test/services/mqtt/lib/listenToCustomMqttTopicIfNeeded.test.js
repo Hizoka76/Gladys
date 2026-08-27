@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 
 const { assert, fake } = sinon;
 const { MockedMqttClient, mqttApi } = require('../mocks.test');
@@ -90,6 +90,56 @@ describe('Mqtt.listenToCustomMqttTopicIfNeeded', () => {
         regex_key: 'custom_mqtt_topic/test/test',
         topic: 'custom_mqtt_topic/test/test',
         object_path: 'data.temperature',
+      },
+    ]);
+  });
+  it('should not connect to custom mqtt topic as topic is empty', async () => {
+    const device = {
+      selector: 'my-device',
+      features: [
+        {
+          id: 'b42d3688-4403-479a-9376-9f5227ab543a',
+        },
+      ],
+      params: [
+        {
+          name: 'mqtt_custom_topic_feature:b42d3688-4403-479a-9376-9f5227ab543a',
+          value: '',
+        },
+        {
+          name: 'mqtt_custom_object_path_feature:b42d3688-4403-479a-9376-9f5227ab543a',
+          value: 'data.temperature',
+        },
+      ],
+    };
+    await mqttHandler.listenToCustomMqttTopicIfNeeded(device);
+    assert.notCalled(mqttApi.subscribe);
+    expect(mqttHandler.deviceFeatureCustomMqttTopics).to.deep.equal([]);
+  });
+  it('should add listener but not subscribe as mqtt client is not connected', async () => {
+    const notConnectedMqttHandler = new MqttHandler(gladys, MockedMqttClient, 'faea9c35-759a-44d5-bcc9-2af1de37b8b4');
+    const device = {
+      selector: 'my-device',
+      features: [
+        {
+          id: 'b42d3688-4403-479a-9376-9f5227ab543a',
+        },
+      ],
+      params: [
+        {
+          name: 'mqtt_custom_topic_feature:b42d3688-4403-479a-9376-9f5227ab543a',
+          value: 'custom_mqtt_topic/test/test',
+        },
+      ],
+    };
+    await notConnectedMqttHandler.listenToCustomMqttTopicIfNeeded(device);
+    assert.notCalled(mqttApi.subscribe);
+    expect(notConnectedMqttHandler.deviceFeatureCustomMqttTopics).to.deep.equal([
+      {
+        device_feature_id: 'b42d3688-4403-479a-9376-9f5227ab543a',
+        regex_key: 'custom_mqtt_topic/test/test',
+        topic: 'custom_mqtt_topic/test/test',
+        object_path: null,
       },
     ]);
   });

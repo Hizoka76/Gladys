@@ -5,9 +5,16 @@ const {
   BUTTON_PUSH,
   COVER_STATE,
   SIREN_LMH_VOLUME,
+  SIREN_MODE,
   PILOT_WIRE_MODE,
   LIQUID_STATE,
+  WATER_VALVE_CURRENT_DEVICE_STATUS,
+  STATE,
 } = require('../../../utils/constants');
+
+// Sirens naming their melodies "melody_1", "melody_2"… instead of publishing a plain number:
+// the number is the Gladys value, and the expose list says which melodies the siren really has.
+const MELODY_NAME = /^melody_(\d+)$/;
 
 const WRITE_VALUE_MAPPING = {};
 const READ_VALUE_MAPPING = {};
@@ -171,16 +178,52 @@ addMapping('liquid_state', LIQUID_STATE.LOW, 'low');
 addMapping('liquid_state', LIQUID_STATE.NORMAL, 'normal');
 addMapping('liquid_state', LIQUID_STATE.HIGH, 'high');
 
+// SONOFF SWV water valve
+// https://www.zigbee2mqtt.io/devices/SWV.html
+addMapping('current_device_status', WATER_VALVE_CURRENT_DEVICE_STATUS.NORMAL_STATE, 'normal_state');
+addMapping('current_device_status', WATER_VALVE_CURRENT_DEVICE_STATUS.WATER_SHORTAGE, 'water_shortage');
+addMapping('current_device_status', WATER_VALVE_CURRENT_DEVICE_STATUS.WATER_LEAKAGE, 'water_leakage');
+addMapping(
+  'current_device_status',
+  WATER_VALVE_CURRENT_DEVICE_STATUS.WATER_SHORTAGE_AND_WATER_LEAKAGE,
+  'water_shortage & water_leakage',
+);
+
 // Bosch BSIR-EZ outdoor siren
 // https://www.zigbee2mqtt.io/devices/BSIR-EZ.html
 addMapping('trigger_alarm', BUTTON_PUSH.PRESSED, 'trigger');
 addMapping('stop_alarm', BUTTON_PUSH.PRESSED, 'stop');
+
+// NEO NAS-AB06B2 outdoor solar siren
+// https://www.zigbee2mqtt.io/devices/NAS-AB06B2.html
+addMapping('alarm_mode', SIREN_MODE.SOUND, 'alarm_sound');
+addMapping('alarm_mode', SIREN_MODE.LIGHT, 'alarm_light');
+addMapping('alarm_mode', SIREN_MODE.SOUND_AND_LIGHT, 'alarm_sound_light');
+
+// A silent siren is published as "no_alarm" by the current zigbee-herdsman-converters and as
+// "normal" by the expose list and the older/external converters: both mean the siren is idle.
+addMapping('alarm_state', SIREN_MODE.IDLE, 'no_alarm');
+addMapping('alarm_state', SIREN_MODE.IDLE, 'normal');
+addMapping('alarm_state', SIREN_MODE.SOUND, 'alarm_sound');
+addMapping('alarm_state', SIREN_MODE.LIGHT, 'alarm_light');
+addMapping('alarm_state', SIREN_MODE.SOUND_AND_LIGHT, 'alarm_sound_light');
+
+// Heiman HS1SA-E Lover smoke detector
+// https://www.zigbee2mqtt.io/devices/HS1SA-E_Lover.html
+addMapping('trigger_selftest', BUTTON_PUSH.PRESSED, 'test');
+addMapping('siren_for_automation_only', STATE.OFF, 'stop');
+addMapping('siren_for_automation_only', STATE.ON, 'smoke_siren');
 
 module.exports = {
   type: 'enum',
   writeValue: (expose, value) => {
     if (expose.name === 'melody') {
       return value;
+    }
+
+    if (expose.name === 'alarm_melody') {
+      const melodyName = `melody_${value}`;
+      return (expose.values || []).includes(melodyName) ? melodyName : undefined;
     }
 
     const relatedValue = (WRITE_VALUE_MAPPING[expose.name] || {})[value];
@@ -195,6 +238,11 @@ module.exports = {
     if (expose.name === 'melody') {
       const intValue = parseInt(value, 10);
       return intValue;
+    }
+
+    if (expose.name === 'alarm_melody') {
+      const melodyNumber = MELODY_NAME.exec(value);
+      return melodyNumber === null ? undefined : parseInt(melodyNumber[1], 10);
     }
 
     const subValue = value.replace(/^(\d+_)?/, '');
@@ -234,6 +282,34 @@ module.exports = {
         type: DEVICE_FEATURE_TYPES.SIREN.MELODY,
       },
     },
+    // Melodies are numbered from 1, and the expose list gives their count: a siren with more
+    // than three melodies is mapped without touching this file.
+    alarm_melody: {
+      feature: {
+        category: DEVICE_FEATURE_CATEGORIES.SIREN,
+        type: DEVICE_FEATURE_TYPES.SIREN.MELODY,
+        min: 1,
+      },
+    },
+    // Sirens do not all offer the same effects, and most cannot be told to stay quiet: the
+    // values the expose advertises become the supported_options of the feature, so the
+    // dashboard and the scenes only offer effects this siren really accepts.
+    alarm_mode: {
+      feature: {
+        category: DEVICE_FEATURE_CATEGORIES.SIREN,
+        type: DEVICE_FEATURE_TYPES.SIREN.ALARM_MODE,
+        buildSupportedOptions: true,
+      },
+    },
+    alarm_state: {
+      feature: {
+        category: DEVICE_FEATURE_CATEGORIES.SIREN,
+        type: DEVICE_FEATURE_TYPES.SIREN.ALARM_STATE,
+        min: 0,
+        max: 3,
+        forceOverride: true,
+      },
+    },
     pilot_wire_mode: {
       feature: {
         category: DEVICE_FEATURE_CATEGORIES.HEATER,
@@ -246,6 +322,15 @@ module.exports = {
         type: DEVICE_FEATURE_TYPES.LEVEL_SENSOR.LIQUID_STATE,
       },
     },
+    current_device_status: {
+      feature: {
+        category: DEVICE_FEATURE_CATEGORIES.WATER_VALVE,
+        type: DEVICE_FEATURE_TYPES.WATER_VALVE.CURRENT_DEVICE_STATUS,
+        min: 0,
+        max: 3,
+        forceOverride: true,
+      },
+    },
     trigger_alarm: {
       feature: {
         category: DEVICE_FEATURE_CATEGORIES.BUTTON,
@@ -256,6 +341,18 @@ module.exports = {
       feature: {
         category: DEVICE_FEATURE_CATEGORIES.BUTTON,
         type: DEVICE_FEATURE_TYPES.BUTTON.PUSH,
+      },
+    },
+    trigger_selftest: {
+      feature: {
+        category: DEVICE_FEATURE_CATEGORIES.BUTTON,
+        type: DEVICE_FEATURE_TYPES.BUTTON.PUSH,
+      },
+    },
+    siren_for_automation_only: {
+      feature: {
+        category: DEVICE_FEATURE_CATEGORIES.SIREN,
+        type: DEVICE_FEATURE_TYPES.SIREN.BINARY,
       },
     },
   },

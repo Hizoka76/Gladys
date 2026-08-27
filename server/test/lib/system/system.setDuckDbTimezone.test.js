@@ -1,4 +1,4 @@
-const sinon = require('sinon');
+const sinon = require('sinon').createSandbox();
 
 const { fake, assert } = sinon;
 
@@ -34,7 +34,7 @@ const event = {
 const job = new Job(event);
 
 const config = {
-  tempFolder: '/tmp/gladys',
+  tempFolder: process.env.TEMP_FOLDER || '/tmp/gladys',
 };
 
 describe('system.setDuckDbTimezone', () => {
