@@ -1,172 +1,137 @@
-import { useState, useRef, useEffect } from 'preact/hooks';
-import { ACTIONS, EVENTS } from '../../../../../../server/utils/constants';
-import { NODE_TYPES } from './sceneToGraph';
+import { useState } from 'preact/hooks';
+import { Text } from 'preact-i18n';
+
+import TypePicker from '../TypePicker';
+import { ACTION_CATEGORIES, ACTION_ICON, DEPRECATED_ACTIONS, TRIGGER_CATEGORIES, TRIGGER_ICON } from '../typesCatalog';
+import {
+  NODE_TYPES,
+  isConditionAction,
+  getActionLabel,
+  getActionIcon,
+  getTriggerLabel,
+  getTriggerIcon
+} from './sceneToGraph';
 import style from './canvasStyle.css';
 
-const TRIGGER_ENTRIES = [
-  { type: EVENTS.DEVICE.NEW_STATE, label: "État d'appareil", icon: 'fe-activity' },
-  { type: EVENTS.DEVICE.MULTI_STATE, label: "États multiples d'appareil", icon: 'fe-layers' },
-  { type: EVENTS.TIME.CHANGED, label: 'Heure planifiée', icon: 'fe-watch' },
-  { type: EVENTS.TIME.SUNRISE, label: 'Lever du soleil', icon: 'fe-sunrise' },
-  { type: EVENTS.TIME.SUNSET, label: 'Coucher du soleil', icon: 'fe-sunset' },
-  { type: EVENTS.USER_PRESENCE.BACK_HOME, label: 'Retour maison', icon: 'fe-home' },
-  { type: EVENTS.USER_PRESENCE.LEFT_HOME, label: 'Départ maison', icon: 'fe-log-out' },
-  { type: EVENTS.HOUSE.EMPTY, label: 'Maison vide', icon: 'fe-home' },
-  { type: EVENTS.HOUSE.NO_LONGER_EMPTY, label: 'Maison occupée', icon: 'fe-home' },
-  { type: EVENTS.AREA.USER_ENTERED, label: 'Entrée dans zone', icon: 'fe-compass' },
-  { type: EVENTS.AREA.USER_LEFT, label: 'Sortie de zone', icon: 'fe-compass' },
-  { type: EVENTS.CALENDAR.EVENT_IS_COMING, label: 'Événement calendrier', icon: 'fe-calendar' },
-  { type: EVENTS.ALARM.ARM, label: 'Alarme armée', icon: 'fe-bell' },
-  { type: EVENTS.ALARM.DISARM, label: 'Alarme désarmée', icon: 'fe-bell-off' },
-  { type: EVENTS.SYSTEM.START, label: 'Démarrage Gladys', icon: 'fe-power' },
-  { type: EVENTS.MQTT.RECEIVED, label: 'Message MQTT', icon: 'fe-hash' }
-];
-
-const ACTION_ENTRIES = [
-  { type: ACTIONS.LIGHT.TURN_ON, label: 'Allumer lumière', icon: 'fe-toggle-right', group: 'Lumière' },
-  { type: ACTIONS.LIGHT.TURN_OFF, label: 'Éteindre lumière', icon: 'fe-toggle-left', group: 'Lumière' },
-  { type: ACTIONS.LIGHT.TOGGLE, label: 'Basculer lumière', icon: 'fe-shuffle', group: 'Lumière' },
-  { type: ACTIONS.LIGHT.BLINK, label: 'Faire clignoter', icon: 'fe-sun', group: 'Lumière' },
-  { type: ACTIONS.SWITCH.TURN_ON, label: 'Allumer switch', icon: 'fe-toggle-right', group: 'Switch' },
-  { type: ACTIONS.SWITCH.TURN_OFF, label: 'Éteindre switch', icon: 'fe-toggle-left', group: 'Switch' },
-  { type: ACTIONS.SWITCH.TOGGLE, label: 'Basculer switch', icon: 'fe-shuffle', group: 'Switch' },
-  { type: ACTIONS.DEVICE.SET_VALUE, label: 'Modifier appareil', icon: 'fe-sliders', group: 'Appareil' },
-  { type: ACTIONS.DEVICE.GET_VALUE, label: 'Lire état appareil', icon: 'fe-refresh-cw', group: 'Appareil' },
-  { type: ACTIONS.TIME.DELAY, label: 'Attendre', icon: 'fe-clock', group: 'Temps' },
-  { type: ACTIONS.SCENE.START, label: 'Démarrer scène', icon: 'fe-fast-forward', group: 'Scène' },
-  { type: ACTIONS.MESSAGE.SEND, label: 'Envoyer message', icon: 'fe-message-square', group: 'Message' },
-  { type: ACTIONS.MESSAGE.SEND_CAMERA, label: 'Envoyer image caméra', icon: 'fe-camera', group: 'Message' },
-  { type: ACTIONS.SMS.SEND, label: 'Envoyer SMS', icon: 'fe-message-circle', group: 'Message' },
-  { type: ACTIONS.HTTP.REQUEST, label: 'Requête HTTP', icon: 'fe-link', group: 'Réseau' },
-  { type: ACTIONS.MQTT.SEND, label: 'Envoyer MQTT', icon: 'fe-send', group: 'Réseau' },
-  { type: ACTIONS.ZIGBEE2MQTT.SEND, label: 'Envoyer Zigbee2MQTT', icon: 'fe-zap', group: 'Réseau' },
-  { type: ACTIONS.AI.ASK, label: "Demander à l'IA", icon: 'fe-cpu', group: 'IA' },
-  { type: ACTIONS.MUSIC.PLAY_NOTIFICATION, label: 'Notification sonore', icon: 'fe-music', group: 'Audio' },
-  { type: ACTIONS.USER.SET_SEEN_AT_HOME, label: 'Marquer présent', icon: 'fe-home', group: 'Présence' },
-  { type: ACTIONS.USER.SET_OUT_OF_HOME, label: 'Marquer absent', icon: 'fe-log-out', group: 'Présence' },
-  { type: ACTIONS.USER.CHECK_PRESENCE, label: 'Vérifier présence', icon: 'fe-user-check', group: 'Présence' },
-  { type: ACTIONS.ALARM.SET_ALARM_MODE, label: 'Définir mode alarme', icon: 'fe-bell', group: 'Alarme' },
-  { type: ACTIONS.ALARM.CHECK_ALARM_MODE, label: 'Vérifier mode alarme', icon: 'fe-bell', group: 'Alarme' },
-  { type: ACTIONS.ECOWATT.CONDITION, label: 'Condition Ecowatt', icon: 'fe-zap', group: 'Énergie' },
-  { type: ACTIONS.EDF_TEMPO.CONDITION, label: 'Condition EDF Tempo', icon: 'fe-zap', group: 'Énergie' }
-];
-
-const CONDITION_ENTRIES = [
-  { type: ACTIONS.CONDITION.IF_THEN_ELSE, label: 'Si / Alors / Sinon', icon: 'fe-git-branch' },
-  { type: ACTIONS.CONDITION.ONLY_CONTINUE_IF, label: 'Continuer si', icon: 'fe-filter' },
-  { type: ACTIONS.DEVICE.CHECK_VALUE, label: 'Condition sur état', icon: 'fe-check-circle' },
-  { type: ACTIONS.DEVICE.CHECK_MULTI_VALUE, label: 'Condition sur états multiples', icon: 'fe-check-circle' },
-  { type: ACTIONS.CONDITION.CHECK_TIME, label: "Vérifier l'heure", icon: 'fe-watch' },
-  { type: ACTIONS.CALENDAR.IS_EVENT_RUNNING, label: 'Condition sur un événement du calendrier', icon: 'fe-calendar' },
-  { type: ACTIONS.HOUSE.IS_EMPTY, label: 'Vérifier maison vide', icon: 'fe-home' },
-  { type: ACTIONS.HOUSE.IS_NOT_EMPTY, label: 'Vérifier maison occupée', icon: 'fe-home' }
-];
+// Le catalogue partagé avec la vue liste range les conditions dans une catégorie
+// dédiée : on l'extrait pour lui conserver son onglet, les deux autres onglets
+// se partageant le reste.
+const CONDITION_CATEGORY_KEY = 'conditions';
+const ACTION_ONLY_CATEGORIES = ACTION_CATEGORIES.filter(c => c.key !== CONDITION_CATEGORY_KEY);
+const CONDITION_CATEGORIES = ACTION_CATEGORIES.filter(c => c.key === CONDITION_CATEGORY_KEY);
 
 const TABS = [
-  { id: 'trigger', label: 'Déclencheurs', color: '#10b981' },
-  { id: 'action', label: 'Actions', color: '#3b82f6' },
-  { id: 'condition', label: 'Conditions', color: '#f59e0b' }
+  { id: 'trigger', labelId: 'editScene.canvas.tabTriggers' },
+  { id: 'action', labelId: 'editScene.canvas.tabActions' },
+  { id: 'condition', labelId: 'editScene.canvas.tabConditions' }
 ];
+
+const TAB_CLASS = {
+  trigger: style.selectorTabTrigger,
+  action: style.selectorTabAction,
+  condition: style.selectorTabCondition
+};
 
 /**
  * Panneau de sélection des blocs (déclencheurs, actions, conditions).
- * Supporte deux modes d'ajout :
- *  - Clic simple → onAddNode (centré sur le canvas)
- *  - Glisser-déposer → onSelectorPointerDown démarre le ghost, SceneCanvas
- *    crée le nœud à la position de relâchement via createNode()
+ *
+ * Le contenu de chaque onglet vient de TypePicker, le composant qu'utilisent
+ * déjà les cartes « Nouveau déclencheur » et « Nouvelle action » de la vue
+ * liste : mêmes intitulés traduits, mêmes descriptions, même recherche, même
+ * classement par catégorie. La palette n'a donc plus sa propre liste de blocs à
+ * tenir à jour — un type ajouté au catalogue y apparaît sans rien toucher ici.
+ *
+ * Deux modes d'ajout, comme avant :
+ *  - Clic simple → onAddNode (bloc centré sur le canvas)
+ *  - Glisser-déposer → onSelectorPointerDown démarre le fantôme, SceneCanvas
+ *    crée le nœud à l'endroit du relâchement via createNode()
  */
 const NodeSelector = ({ onAddNode, onSelectorPointerDown, getDragMoved, onClose }) => {
   const [activeTab, setActiveTab] = useState('trigger');
-  const [search, setSearch] = useState('');
-  const searchRef = useRef(null);
+  const isTrigger = activeTab === 'trigger';
 
-  useEffect(() => {
-    if (searchRef.current) searchRef.current.focus();
-  }, []);
-
-  const filterEntries = entries =>
-    search.trim() ? entries.filter(e => e.label.toLowerCase().includes(search.toLowerCase())) : entries;
-
-  // Construit le bouton d'entrée de la palette pour un déclencheur ou une action.
-  // Gère les deux modes : clic simple (onAddNode) et glisser-déposer (onSelectorPointerDown).
-  const renderEntry = (entry, nodeType) => {
-    // nodeData est transmis à onSelectorPointerDown et sert de template pour
-    // créer le nœud : triggerType OU actionType selon la catégorie.
-    const nodeData =
-      nodeType === NODE_TYPES.TRIGGER
-        ? { nodeType, triggerType: entry.type, label: entry.label, icon: entry.icon }
-        : { nodeType, actionType: entry.type, label: entry.label, icon: entry.icon };
-
-    return (
-      <button
-        key={entry.type}
-        class={style.selectorEntry}
-        onPointerDown={e => {
-          // Seulement le bouton gauche — évite de déclencher le drag sur clic droit
-          if (e.button !== 0 && e.buttons !== 1) return;
-          e.preventDefault(); // empêche le focus/sélection de texte pendant le drag
-          onSelectorPointerDown(nodeData, e.clientX, e.clientY);
-        }}
-        onClick={() => {
-          // Le gestionnaire pointerUp de SceneCanvas a déjà créé le nœud si l'utilisateur
-          // a vraiment glissé (> 4px). On supprime le click pour ne pas ajouter deux nœuds.
-          if (getDragMoved && getDragMoved()) return;
-          onAddNode(
-            nodeType === NODE_TYPES.TRIGGER
-              ? { type: NODE_TYPES.TRIGGER, triggerType: entry.type }
-              : { type: nodeType, actionType: entry.type }
-          );
-        }}
-      >
-        <i class={`fe fe-move ${style.selectorEntryDragHandle}`} />
-        <i class={`fe ${entry.icon} ${style.selectorEntryIcon}`} />
-        <span class={style.selectorEntryLabel}>{entry.label}</span>
-        {entry.group && <span class={style.selectorEntryGroup}>{entry.group}</span>}
-      </button>
+  const handleSelect = type => {
+    onAddNode(
+      isTrigger ? { type: NODE_TYPES.TRIGGER, triggerType: type } : { type: NODE_TYPES.ACTION, actionType: type }
     );
+  };
+
+  // Données du fantôme qui suit le curseur pendant le glissé. Le type de nœud
+  // est déduit comme le fait createNode : une action de condition donne un nœud
+  // condition, quel que soit l'onglet d'où elle a été prise.
+  const handlePointerDown = (type, clientX, clientY) => {
+    const nodeData = isTrigger
+      ? {
+          nodeType: NODE_TYPES.TRIGGER,
+          triggerType: type,
+          label: getTriggerLabel({ type }),
+          icon: getTriggerIcon({ type })
+        }
+      : {
+          nodeType: isConditionAction({ type }) ? NODE_TYPES.CONDITION : NODE_TYPES.ACTION,
+          actionType: type,
+          label: getActionLabel({ type }),
+          icon: getActionIcon({ type })
+        };
+    onSelectorPointerDown(nodeData, clientX, clientY);
   };
 
   return (
     <div class={style.selectorPanel}>
       <div class={style.selectorHeader}>
-        <span class={style.selectorTitle}>Ajouter un bloc</span>
+        <span class={style.selectorTitle}>
+          <Text id="editScene.canvas.addBlock">Ajouter un bloc</Text>
+        </span>
         <button class={style.selectorClose} onClick={onClose}>
           <i class="fe fe-x" />
         </button>
-      </div>
-
-      <div class={style.selectorSearch}>
-        <i class={`fe fe-search ${style.selectorSearchIcon}`} />
-        <input
-          ref={searchRef}
-          type="text"
-          class={style.selectorSearchInput}
-          placeholder="Rechercher..."
-          value={search}
-          onInput={e => setSearch(e.target.value)}
-        />
       </div>
 
       <div class={style.selectorTabs}>
         {TABS.map(tab => (
           <button
             key={tab.id}
-            class={`${style.selectorTab} ${activeTab === tab.id ? style.selectorTabActive : ''}`}
-            style={activeTab === tab.id ? { borderColor: tab.color, color: tab.color } : {}}
-            onClick={() => {
-              setActiveTab(tab.id);
-              if (searchRef.current) searchRef.current.focus();
-            }}
+            class={`${style.selectorTab} ${
+              activeTab === tab.id ? `${style.selectorTabActive} ${TAB_CLASS[tab.id]}` : ''
+            }`}
+            onClick={() => setActiveTab(tab.id)}
           >
-            {tab.label}
+            <Text id={tab.labelId} />
           </button>
         ))}
       </div>
 
+      {/* La clé force un TypePicker neuf à chaque onglet : sa recherche est un
+          état interne, qu'il ne faut pas traîner d'un onglet à l'autre. */}
       <div class={style.selectorList}>
-        {activeTab === 'trigger' && filterEntries(TRIGGER_ENTRIES).map(e => renderEntry(e, NODE_TYPES.TRIGGER))}
-        {activeTab === 'action' && filterEntries(ACTION_ENTRIES).map(e => renderEntry(e, NODE_TYPES.ACTION))}
-        {activeTab === 'condition' && filterEntries(CONDITION_ENTRIES).map(e => renderEntry(e, NODE_TYPES.CONDITION))}
+        {isTrigger ? (
+          <TypePicker
+            key="trigger"
+            categories={TRIGGER_CATEGORIES}
+            icons={TRIGGER_ICON}
+            labelPrefix="editScene.triggers"
+            descriptionPrefix="editScene.triggersDescriptions"
+            categoryPrefix="editScene.triggerCategories"
+            searchPlaceholderId="editScene.searchTriggersPlaceholder"
+            onSelect={handleSelect}
+            onOptionPointerDown={handlePointerDown}
+            wasDragged={getDragMoved}
+          />
+        ) : (
+          <TypePicker
+            key={activeTab}
+            categories={activeTab === 'condition' ? CONDITION_CATEGORIES : ACTION_ONLY_CATEGORIES}
+            icons={ACTION_ICON}
+            deprecated={DEPRECATED_ACTIONS}
+            labelPrefix="editScene.actions"
+            descriptionPrefix="editScene.actionsDescriptions"
+            categoryPrefix="editScene.actionCategories"
+            searchPlaceholderId="editScene.searchActionsPlaceholder"
+            onSelect={handleSelect}
+            onOptionPointerDown={handlePointerDown}
+            wasDragged={getDragMoved}
+          />
+        )}
       </div>
     </div>
   );

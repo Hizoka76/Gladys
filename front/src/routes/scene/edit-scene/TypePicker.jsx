@@ -15,7 +15,26 @@ class TypePicker extends Component {
 
   selectType = e => {
     const value = e.currentTarget.dataset.value;
+    // Le canvas crée déjà le bloc au relâchement quand l'utilisateur a glissé
+    // l'entrée : sans ce garde, le clic qui suit en ajouterait un second.
+    if (this.props.wasDragged && this.props.wasDragged()) {
+      return;
+    }
     this.props.onSelect(value);
+  };
+
+  // Glisser-déposer, utilisé par la palette du canvas. Sans onOptionPointerDown
+  // — le cas des cartes de la vue liste — le sélecteur reste au simple clic.
+  startDrag = e => {
+    if (!this.props.onOptionPointerDown) {
+      return;
+    }
+    // Bouton gauche uniquement : un clic droit ne doit pas démarrer un glissé
+    if (e.button !== 0 && e.buttons !== 1) {
+      return;
+    }
+    e.preventDefault(); // empêche le focus et la sélection de texte pendant le glissé
+    this.props.onOptionPointerDown(e.currentTarget.dataset.value, e.clientX, e.clientY);
   };
 
   getVisibleCategories = () => {
@@ -84,6 +103,7 @@ class TypePicker extends Component {
                     data-cy="type-picker-option"
                     data-value={item.type}
                     onClick={this.selectType}
+                    onPointerDown={this.startDrag}
                     key={item.type}
                   >
                     <span class={cx(style.typePickerIcon, style[COLOR_CLASS[category.color]])}>
