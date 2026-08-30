@@ -107,6 +107,16 @@
   color: var(--gl-ink);
 }
 
+/* Au focus, theme-optimized entoure btn-success d'un halo vert — la couleur de
+   la variante, sans rapport avec une bascule de grille, et incohérente avec le
+   halo gris que reçoit le même bouton quand il est inactif. On reprend donc le
+   gris de btn-outline-secondary dans les deux états. Le second sélecteur couvre
+   la règle :active:focus du thème, plus spécifique que la première. */
+:global(.glass-theme) .panelBtn:global(.btn-success):focus,
+:global(.glass-theme) .panelBtn:global(.btn-success):not(:disabled):not(.disabled):active:focus {
+  box-shadow: 0 0 0 2px rgba(134, 142, 150, 0.5);
+}
+
 /* Ces pastilles doivent s'inverser avec le thème en mode sombre, et non
    conserver leurs couleurs au travers de la double inversion de dark-mode.css */
 :global(.dark-mode .glass-theme) .panelBtn:global(.btn-success),
