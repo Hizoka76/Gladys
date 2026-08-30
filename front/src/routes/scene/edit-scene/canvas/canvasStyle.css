@@ -50,6 +50,25 @@
   background: #f8fafc;
 }
 
+/* Les boutons de contrôle (zoom, ajustement, verrouillage) sont dimensionnés par
+   React Flow pour des SVG plafonnés à 12px. Nos icônes sont des glyphes de
+   police — celles du reste de l'application — et doivent être cadrées de même. */
+.sceneCanvasOuter :global(.react-flow__controls-button) i {
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Cadenas ouvert et cadenas fermé se ressemblent trop à cette taille : la
+   couleur porte l'information, l'icône seule et non le bouton, pour ne pas
+   déséquilibrer la colonne de contrôles. */
+.controlUnlocked {
+  color: #10b981;
+}
+
+.controlLocked {
+  color: #ef4444;
+}
+
 /* ─── Barre d'outils du canvas ─────────────────────────────────────
    Les boutons gardent leurs classes Bootstrap et reçoivent le même traitement
    que ceux de la barre d'actions du bas de page (.editFooter dans ../style.css)
