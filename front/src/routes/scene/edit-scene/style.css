@@ -314,6 +314,13 @@
   padding: 0 0.5rem;
 }
 
+/* La palette du canvas confie le défilement à son panneau, qui occupe déjà la
+   hauteur disponible : le plafond ci-dessus l'empêcherait de s'en servir. */
+.typePickerListFull {
+  max-height: none;
+  overflow-y: visible;
+}
+
 .typePickerCategory {
   margin-bottom: 0.75rem;
 }
