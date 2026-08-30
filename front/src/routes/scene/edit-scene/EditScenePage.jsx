@@ -161,6 +161,8 @@ const EditScenePage = ({ children, ...props }) => {
                       triggersVariables={props.triggersVariables}
                       setVariables={props.setVariables}
                       setVariablesTrigger={props.setVariablesTrigger}
+                      registerApply={props.registerCanvasApply}
+                      onDirtyChange={props.setCanvasDirty}
                     />
                   </div>
                 </div>
@@ -260,9 +262,12 @@ const EditScenePage = ({ children, ...props }) => {
                     </div>
                   ))}
                 </div>
-                <EditActions {...props} />
               </Fragment>
             )}
+
+            {/* Commune aux deux vues : en vue graphique, son bouton
+                « Sauvegarder » applique le graphe (voir saveSceneOrGraph). */}
+            <EditActions {...props} />
           </div>
         </div>
       </div>

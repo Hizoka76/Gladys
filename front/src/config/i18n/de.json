@@ -4028,7 +4028,6 @@
       "addBlock": "Block hinzufügen",
       "autoLayout": "Auto-Layout",
       "snapToGrid": "Am Raster ausrichten",
-      "applyGraph": "Graph anwenden",
       "nodeType": "Typ",
       "deleteNode": "Löschen",
       "canvasViewTitle": "Graphenansicht",

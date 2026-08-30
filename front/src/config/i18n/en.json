@@ -4028,7 +4028,6 @@
       "addBlock": "Add a block",
       "autoLayout": "Auto-layout",
       "snapToGrid": "Snap to grid",
-      "applyGraph": "Apply graph",
       "nodeType": "Type",
       "deleteNode": "Delete",
       "canvasViewTitle": "Graph view",

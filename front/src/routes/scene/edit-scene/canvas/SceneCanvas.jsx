@@ -88,7 +88,16 @@ function loadSnapPreference() {
   }
 }
 
-const SceneCanvas = ({ scene, saveScene, saving, variables, triggersVariables, setVariables, setVariablesTrigger }) => {
+const SceneCanvas = ({
+  scene,
+  saveScene,
+  variables,
+  triggersVariables,
+  setVariables,
+  setVariablesTrigger,
+  registerApply,
+  onDirtyChange
+}) => {
   // Stable key per scene — used to persist node positions in localStorage
   const positionsKey = scene.selector ? `gladys-canvas-pos-${scene.selector}` : null;
 
@@ -539,23 +548,73 @@ const SceneCanvas = ({ scene, saveScene, saving, variables, triggersVariables, s
   }, [draggingNode, reactFlowInstance, createNode]);
   // ────────────────────────────────────────────────────────────────────
 
+  // ── Suivi des modifications non enregistrées ────────────────────────
+  // Signature structurelle du graphe : identifiants, positions (graphToScene
+  // ordonne les actions par position X, un déplacement change donc la scène) et
+  // données des nœuds, plus les liens. La sélection d'un nœud, qui mute aussi
+  // l'état React Flow, en est volontairement absente : cliquer sur un bloc ne
+  // doit pas afficher « modifications non enregistrées ».
+  const graphSignature = useMemo(
+    () =>
+      JSON.stringify({
+        nodes: nodes.map(n => ({ id: n.id, type: n.type, position: n.position, data: n.data })),
+        edges: edges.map(e => ({
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle
+        }))
+      }),
+    [nodes, edges]
+  );
+
+  // Signature de la dernière version enregistrée, et dernier état signalé au
+  // parent — pour n'appeler onDirtyChange qu'aux basculements, et pas à chaque
+  // image d'un déplacement de bloc.
+  const savedSignatureRef = useRef(graphSignature);
+  const reportedDirtyRef = useRef(false);
+
+  useEffect(() => {
+    const dirty = graphSignature !== savedSignatureRef.current;
+    if (dirty === reportedDirtyRef.current) return;
+    reportedDirtyRef.current = dirty;
+    if (onDirtyChange) onDirtyChange(dirty);
+  }, [graphSignature, onDirtyChange]);
+
   // Convertit le graphe courant en scène Gladys et déclenche la sauvegarde API.
   // Utilise les refs (nodesRef, edgesRef) plutôt que les états directement pour
   // être sûr de travailler avec les valeurs les plus récentes depuis le listener keydown.
   const handleApply = useCallback(
-    (debug = false) => {
+    async (debug = false) => {
       const issues = checkGraphIssues(nodesRef.current, edgesRef.current);
       setGraphWarnings(issues);
-      if (issues.some(w => w.blocking)) return;
+      if (issues.some(w => w.blocking)) return false;
       const updatedScene = graphToScene(nodesRef.current, edgesRef.current, scene);
-      saveScene(updatedScene, debug);
+      // La signature est figée avant l'appel : le graphe peut bouger pendant que
+      // la requête est en vol, et on ne doit alors pas afficher « enregistré ».
+      const savedSignature = graphSignature;
+      const saved = await saveScene(updatedScene, debug);
+      if (saved === false) return false;
+      savedSignatureRef.current = savedSignature;
+      reportedDirtyRef.current = false;
+      if (onDirtyChange) onDirtyChange(false);
+      return true;
     },
-    [scene, saveScene]
+    [scene, saveScene, graphSignature, onDirtyChange]
   );
 
   // Mise à jour du ref à chaque render : le listener keydown (enregistré une seule fois)
   // appelle toujours la version la plus récente de handleApply via ce ref.
   handleApplyRef.current = handleApply;
+
+  // La barre d'actions du bas de page déclenche l'application du graphe : elle a
+  // remplacé le bouton « Appliquer le graphe » qui vivait dans cette barre
+  // d'outils, pour que les deux vues se sauvegardent au même endroit.
+  useEffect(() => {
+    if (!registerApply) return undefined;
+    registerApply(handleApply);
+    return () => registerApply(null);
+  }, [registerApply, handleApply]);
 
   const miniMapNodeColor = node => {
     if (node.type === NODE_TYPES.TRIGGER) return '#10b981';
@@ -624,18 +683,6 @@ const SceneCanvas = ({ scene, saveScene, saving, variables, triggersVariables, s
               >
                 <i class="fe fe-grid mr-1" />
                 <Text id="editScene.canvas.snapToGrid">Grille</Text>
-              </button>
-              <button
-                class={`btn btn-sm btn-primary ${style.panelBtn}`}
-                onClick={() => handleApply()}
-                onContextMenu={e => {
-                  e.preventDefault();
-                  handleApply(true);
-                }}
-                disabled={saving}
-              >
-                {saving ? <i class="fe fe-loader mr-1" /> : <i class="fe fe-check mr-1" />}
-                <Text id="editScene.canvas.applyGraph">Appliquer le graphe</Text>
               </button>
             </div>
           </Panel>
