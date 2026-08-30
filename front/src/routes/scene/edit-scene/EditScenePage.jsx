@@ -31,11 +31,19 @@ const EditScenePage = ({ children, ...props }) => {
       {/* The scene editor lives on the same Horizon glass scene as the dashboard.
           It has no per-page appearance, so it takes the default scene directly
           instead of going through getBackgroundSceneClass */}
-      <div class={cx('page-main', 'glass-theme', dashboardStyle.dashboardBackground, dashboardStyle.glassScene)}>
+      {/* En vue graphique, ces trois niveaux prolongent la chaîne flex commencée
+          par le thème (.page en colonne, .page-main en flex:1) jusqu'au canvas,
+          qui occupe alors toute la place restante. Sans ces classes — donc en
+          vue liste — la mise en page reste celle du reste de l'application. */}
+      <div
+        class={cx('page-main', 'glass-theme', dashboardStyle.dashboardBackground, dashboardStyle.glassScene, {
+          [style.canvasModePage]: props.canvasView
+        })}
+      >
         {/* padding, not margin: a top margin collapses through the glass
             page-main and shifts the scene down */}
-        <div class="py-3 py-md-5">
-          <div class={cx('container', style.pageContainer)}>
+        <div class={cx('py-3', 'py-md-5', { [style.canvasModeSection]: props.canvasView })}>
+          <div class={cx('container', style.pageContainer, { [style.canvasModeContainer]: props.canvasView })}>
             <div class="mb-4">
               <div class="row justify-content-between">
                 <div class={cx('col', style.pageTitleColumn)}>
@@ -140,8 +148,8 @@ const EditScenePage = ({ children, ...props }) => {
               )}
 
               {props.canvasView && (
-                <div class="row">
-                  <div class="col-12">
+                <div class={cx('row', style.canvasModeRow)}>
+                  <div class={cx('col-12', style.canvasModeCol)}>
                     <SceneCanvas
                       scene={props.scene}
                       saveScene={props.saveSceneFromCanvas}

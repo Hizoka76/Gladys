@@ -2,7 +2,12 @@
 .sceneCanvasOuter {
   position: relative;
   width: 100%;
-  height: 72vh;
+  /* Grandit avec la chaîne flex posée par EditScenePage en vue graphique, au
+     lieu d'une hauteur en vh qui laissait une bande vide sous le canvas. Le
+     min-height garde le comportement d'origine quand la fenêtre est trop
+     courte (mobile) : le canvas reste utilisable et la page redevient
+     défilante. */
+  flex: 1 1 auto;
   min-height: 500px;
 }
 
@@ -306,7 +311,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
-  max-height: calc(72vh - 70px);
+  max-height: calc(100% - 70px);
   overflow: hidden;
 }
 

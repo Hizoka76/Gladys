@@ -29,6 +29,49 @@
   padding-bottom: 6rem;
 }
 
+/* ─── Vue graphique : le canvas prend toute la place disponible ─────────
+   Le thème pose déjà .page en colonne flex et .page-main en flex: 1 1 auto,
+   mais la chaîne s'arrête là : le canvas était donc figé à une hauteur en vh,
+   laissant une bande vide en bas de page et deux marges latérales dues au
+   max-width du .container. Ces classes prolongent la chaîne jusqu'à lui.
+
+   Le min-height: 0 est indispensable à chaque maillon : la valeur initiale
+   (auto) empêche un enfant flex de descendre sous sa taille de contenu, et le
+   canvas déborderait au lieu de s'ajuster. */
+.canvasModePage {
+  display: flex;
+  flex-direction: column;
+}
+
+.canvasModeSection {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Compound selector : cette règle et .pageContainer visent le même élément,
+   la spécificité supérieure garantit que le padding-bottom est bien annulé. */
+.pageContainer.canvasModeContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: none;
+  padding-bottom: 1.5rem;
+}
+
+.canvasModeRow {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.canvasModeCol {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* The title column shrinks with the scene name: without min-width, the flex
    item refuses to go below the intrinsic width of the name and the ellipsis
    never kicks in */
