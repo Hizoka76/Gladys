@@ -3,6 +3,7 @@ import ReactFlow, {
   addEdge,
   Background,
   BackgroundVariant,
+  ControlButton,
   Controls,
   MiniMap,
   useNodesState,
@@ -12,7 +13,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-import { Text } from 'preact-i18n';
+import { Localizer, Text } from 'preact-i18n';
 import { v4 as uuidv4 } from 'uuid';
 
 import TriggerNode from './nodes/TriggerNode';
@@ -118,6 +119,10 @@ const SceneCanvas = ({
   const [graphWarnings, setGraphWarnings] = useState([]);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [snapEnabled, setSnapEnabled] = useState(loadSnapPreference);
+  // Verrouillage du graphe, équivalent du bouton « toggle interactivity » de
+  // React Flow : celui d'origine pilote le store interne, celui-ci passe par les
+  // propriétés de <ReactFlow>, ce qui permet de lui donner un libellé traduit.
+  const [interactive, setInteractive] = useState(true);
 
   // Bascule l'aimantation et mémorise le choix pour les scènes suivantes.
   const toggleSnap = useCallback(() => {
@@ -643,6 +648,9 @@ const SceneCanvas = ({
           multiSelectionKeyCode="Control"
           snapToGrid={snapEnabled}
           snapGrid={[GRID_SIZE, GRID_SIZE]}
+          nodesDraggable={interactive}
+          nodesConnectable={interactive}
+          elementsSelectable={interactive}
         >
           {snapEnabled ? (
             <>
@@ -658,7 +666,51 @@ const SceneCanvas = ({
           ) : (
             <Background color="#e2e8f0" gap={24} size={1} />
           )}
-          <Controls />
+          {/* Les boutons d'origine de React Flow portent des infobulles écrites en
+              dur en anglais, sans propriété pour les remplacer : on les désactive
+              et on fournit les nôtres dans le même conteneur. */}
+          <Controls showZoom={false} showFitView={false} showInteractive={false}>
+            <Localizer>
+              <ControlButton
+                onClick={() => reactFlowInstance && reactFlowInstance.zoomIn()}
+                title={<Text id="editScene.canvas.zoomIn" />}
+                aria-label={<Text id="editScene.canvas.zoomIn" />}
+              >
+                <i class="fe fe-plus" />
+              </ControlButton>
+            </Localizer>
+            <Localizer>
+              <ControlButton
+                onClick={() => reactFlowInstance && reactFlowInstance.zoomOut()}
+                title={<Text id="editScene.canvas.zoomOut" />}
+                aria-label={<Text id="editScene.canvas.zoomOut" />}
+              >
+                <i class="fe fe-minus" />
+              </ControlButton>
+            </Localizer>
+            <Localizer>
+              <ControlButton
+                onClick={() => reactFlowInstance && reactFlowInstance.fitView()}
+                title={<Text id="editScene.canvas.fitView" />}
+                aria-label={<Text id="editScene.canvas.fitView" />}
+              >
+                <i class="fe fe-maximize" />
+              </ControlButton>
+            </Localizer>
+            <Localizer>
+              <ControlButton
+                onClick={() => setInteractive(v => !v)}
+                title={<Text id={interactive ? 'editScene.canvas.lockGraph' : 'editScene.canvas.unlockGraph'} />}
+                aria-label={<Text id={interactive ? 'editScene.canvas.lockGraph' : 'editScene.canvas.unlockGraph'} />}
+              >
+                <i
+                  class={`fe ${interactive ? 'fe-unlock' : 'fe-lock'} ${
+                    interactive ? style.controlUnlocked : style.controlLocked
+                  }`}
+                />
+              </ControlButton>
+            </Localizer>
+          </Controls>
           <MiniMap nodeColor={miniMapNodeColor} pannable zoomable />
 
           <Panel position="top-left">
