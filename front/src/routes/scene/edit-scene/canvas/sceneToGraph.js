@@ -517,6 +517,13 @@ export function isCalendarCondition(action) {
 }
 
 // ── Helpers de construction d'arêtes ────────────────────────────────
+// Type de tracé commun à toutes les arêtes, ici et dans SceneCanvas pour celles
+// créées à la souris. C'est MidArrowEdge, une courbe de Bézier dont la pointe
+// est portée au milieu du tracé : les liaisons suivent le mouvement d'un bloc à
+// l'autre, là où le 'smoothstep' d'origine imposait des segments à angles
+// droits, et la flèche ne vient plus s'écraser contre le bloc cible.
+export const EDGE_TYPE = 'midArrow';
+
 // outerEdge : arête du flux principal (grise par défaut, verte pour les conditions simples).
 // branchEdge : arête de branche then (verte #10b981) ou else (rouge #ef4444).
 const outerEdge = (id, source, target, sourceHandle, color = '#94a3b8') => ({
@@ -524,7 +531,7 @@ const outerEdge = (id, source, target, sourceHandle, color = '#94a3b8') => ({
   source,
   ...(sourceHandle ? { sourceHandle } : {}),
   target,
-  type: 'smoothstep',
+  type: EDGE_TYPE,
   animated: false,
   ...(color !== '#94a3b8' ? { markerEnd: { type: 'arrowclosed', color } } : {}),
   style: { stroke: color, strokeWidth: 2 }
@@ -536,7 +543,7 @@ const branchEdge = (id, source, sourceHandle, target, color) => ({
   source,
   sourceHandle,
   target,
-  type: 'smoothstep',
+  type: EDGE_TYPE,
   animated: false,
   markerEnd: { type: 'arrowclosed', color },
   style: { stroke: color, strokeWidth: 2 }

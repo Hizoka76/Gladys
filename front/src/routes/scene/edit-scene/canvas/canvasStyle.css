@@ -58,6 +58,12 @@
   line-height: 1;
 }
 
+/* Pointe centrale des arêtes (MidArrowEdge) : purement décorative, elle ne doit
+   pas intercepter le clic qui sélectionne l'arête sous elle. */
+.edgeArrow {
+  pointer-events: none;
+}
+
 /* Cadenas ouvert et cadenas fermé se ressemblent trop à cette taille : la
    couleur porte l'information, l'icône seule et non le bouton, pour ne pas
    déséquilibrer la colonne de contrôles. */
