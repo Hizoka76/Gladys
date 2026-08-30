@@ -121,7 +121,10 @@ const EditScenePage = ({ children, ...props }) => {
                 <div class="col-12 text-muted">{props.scene.description && <span>{props.scene.description}</span>}</div>
               </div>
             </div>
-            <div>
+            {/* Ce conteneur porte les alertes, le panneau de configuration et la
+                vue elle-même : il fait partie de la chaîne flex, sans quoi la
+                ligne du canvas ne pourrait pas grandir. */}
+            <div class={cx({ [style.canvasModeSection]: props.canvasView })}>
               {props.error && (
                 <div class="alert alert-danger">
                   <Text id="editScene.saveSceneError" />
