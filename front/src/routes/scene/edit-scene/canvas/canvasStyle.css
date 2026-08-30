@@ -399,9 +399,13 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
-  /* Le panneau commence à 52px du haut : 64px de réserve le laissent descendre
-     jusqu'à 12px du bas du canvas avant que sa liste ne se mette à défiler. */
-  max-height: calc(100% - 64px);
+  /* Hauteur définie par les deux décalages plutôt que par un max-height en
+     pourcentage : celui-ci se résolvait contre une hauteur qui n'était pas
+     celle du conteneur, et arrêtait le panneau une vingtaine de pixels sous
+     son contenu — sa liste défilait alors qu'il restait toute la place du
+     canvas en dessous. Le panneau occupe donc toujours la hauteur disponible,
+     et seule sa liste défile, lorsqu'elle déborde réellement. */
+  bottom: 12px;
   overflow: hidden;
 }
 
