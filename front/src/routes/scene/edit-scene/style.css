@@ -58,7 +58,8 @@
   flex: 1 1 auto;
   min-height: 0;
   max-width: none;
-  padding-bottom: 1.5rem;
+  /* padding-bottom hérité de .pageContainer : la barre d'actions du bas est en
+     position fixe et recouvrirait le bas du canvas sans cette réserve. */
 }
 
 .canvasModeRow {

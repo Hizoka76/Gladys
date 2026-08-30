@@ -1419,8 +1419,43 @@ class EditScene extends Component {
     }
   };
 
-  switchToCanvasView = () => this.setState({ canvasView: true });
-  switchToListView = () => this.setState({ canvasView: false });
+  // Changer de vue démonte l'éditeur courant : le canvas se reconstruit depuis la
+  // scène enregistrée, donc un graphe modifié mais non appliqué est perdu. On
+  // remet l'indicateur à zéro plutôt que de le laisser signaler des
+  // modifications qui n'existent plus.
+  switchToCanvasView = () => this.setState({ canvasView: true, canvasDirty: false });
+  switchToListView = () => this.setState({ canvasView: false, canvasDirty: false });
+
+  // Le canvas dépose ici sa fonction d'application : la barre du bas est commune
+  // aux deux vues, mais en vue graphique il faut convertir le graphe en scène
+  // avant d'enregistrer — ce que faisait le bouton « Appliquer le graphe ».
+  canvasApply = null;
+
+  registerCanvasApply = fn => {
+    this.canvasApply = fn;
+  };
+
+  // Vrai quand le graphe a été modifié depuis le dernier enregistrement. La
+  // comparaison habituelle (scene vs savedSceneSnapshot) ne le voit pas : le
+  // canvas travaille sur son propre état tant qu'on n'applique pas.
+  setCanvasDirty = canvasDirty => this.setState({ canvasDirty });
+
+  // Clic droit sur « Sauvegarder » en vue graphique : enregistre en journalisant
+  // la charge utile envoyée à l'API. Aide au débogage héritée du bouton
+  // « Appliquer le graphe ». En vue liste, le menu contextuel du navigateur
+  // s'ouvre normalement.
+  saveGraphWithDebug = e => {
+    if (!this.state.canvasView || !this.canvasApply) return;
+    e.preventDefault();
+    this.canvasApply(true);
+  };
+
+  saveSceneOrGraph = e => {
+    if (this.state.canvasView && this.canvasApply) {
+      return this.canvasApply();
+    }
+    return this.saveScene(e);
+  };
 
   saveSceneFromCanvas = async (updatedScene, debugMode = false) => {
     this.setState({ saving: true, error: false, errorMessage: null });
@@ -1438,7 +1473,17 @@ class EditScene extends Component {
       await this.props.httpClient.patch(`/api/v1/scene/${this.props.scene_selector}`, sceneToSave);
       const variables = initializeSceneVariables(sceneToSave.actions);
       const triggersVariables = (sceneToSave.triggers || []).map(() => []);
-      this.setState({ scene: sceneToSave, variables, triggersVariables });
+      // L'instantané suit la scène enregistrée, sinon la barre du bas afficherait
+      // « modifications non enregistrées » juste après une sauvegarde réussie.
+      this.setState({
+        scene: sceneToSave,
+        variables,
+        triggersVariables,
+        savedSceneSnapshot: JSON.stringify(sceneToSave),
+        canvasDirty: false
+      });
+      this.setState({ saving: false });
+      return true;
     } catch (e) {
       console.error(e);
       let errorMessage = null;
@@ -1457,6 +1502,7 @@ class EditScene extends Component {
       this.setState({ error: true, errorMessage });
     }
     this.setState({ saving: false });
+    return false;
   };
 
   constructor(props) {
@@ -1466,6 +1512,7 @@ class EditScene extends Component {
       variables: {},
       triggersVariables: [],
       canvasView: false,
+      canvasDirty: false,
       runningScenes: [],
       now: Date.now()
     };
@@ -1513,13 +1560,15 @@ class EditScene extends Component {
       tags,
       askDeleteScene,
       canvasView,
+      canvasDirty,
       runningScenes,
       now,
       savedSceneSnapshot
     }
   ) {
     const runningInfo = computeRunningInfo(runningScenes, props.scene_selector, now);
-    const hasUnsavedChanges = Boolean(scene && savedSceneSnapshot && JSON.stringify(scene) !== savedSceneSnapshot);
+    const hasUnsavedChanges =
+      Boolean(scene && savedSceneSnapshot && JSON.stringify(scene) !== savedSceneSnapshot) || canvasDirty;
     return (
       scene && (
         <div>
@@ -1551,7 +1600,7 @@ class EditScene extends Component {
             updateSceneDescription={this.updateSceneDescription}
             startScene={this.startScene}
             deleteScene={this.deleteScene}
-            saveScene={this.saveScene}
+            saveScene={this.saveSceneOrGraph}
             duplicateScene={this.duplicateScene}
             setTags={this.setTags}
             updateSceneIcon={this.updateSceneIcon}
@@ -1564,6 +1613,9 @@ class EditScene extends Component {
             switchToCanvasView={this.switchToCanvasView}
             switchToListView={this.switchToListView}
             saveSceneFromCanvas={this.saveSceneFromCanvas}
+            onSaveContextMenu={this.saveGraphWithDebug}
+            registerCanvasApply={this.registerCanvasApply}
+            setCanvasDirty={this.setCanvasDirty}
             goBack={this.goBack}
           />
         </div>

@@ -71,7 +71,12 @@ const EditActions = props => (
                 <Text id="editScene.startButton" /> <i class="fe fe-play" />
               </button>
             )}
-            <button onClick={props.saveScene} disabled={props.saving} className="btn btn-success ml-2">
+            <button
+              onClick={props.saveScene}
+              onContextMenu={props.onSaveContextMenu}
+              disabled={props.saving}
+              className="btn btn-success ml-2"
+            >
               <Text id="editScene.saveButton" /> <i class="fe fe-save" />
             </button>
           </div>
