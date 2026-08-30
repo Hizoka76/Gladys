@@ -69,7 +69,7 @@ class TypePicker extends Component {
     };
   }
 
-  render({ categoryPrefix, icons, searchPlaceholderId }, { query }) {
+  render({ categoryPrefix, icons, searchPlaceholderId, fullHeight }, { query }) {
     const visibleCategories = this.getVisibleCategories();
 
     return (
@@ -89,7 +89,7 @@ class TypePicker extends Component {
             />
           </Localizer>
         </div>
-        <div class={style.typePickerList}>
+        <div class={cx(style.typePickerList, { [style.typePickerListFull]: fullHeight })}>
           {visibleCategories.map(category => (
             <div class={style.typePickerCategory} key={category.key}>
               <div class={style.typePickerCategoryTitle}>

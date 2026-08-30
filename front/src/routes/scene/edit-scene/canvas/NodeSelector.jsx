@@ -116,6 +116,7 @@ const NodeSelector = ({ onAddNode, onSelectorPointerDown, getDragMoved, onClose 
             onSelect={handleSelect}
             onOptionPointerDown={handlePointerDown}
             wasDragged={getDragMoved}
+            fullHeight
           />
         ) : (
           <TypePicker
@@ -130,6 +131,7 @@ const NodeSelector = ({ onAddNode, onSelectorPointerDown, getDragMoved, onClose 
             onSelect={handleSelect}
             onOptionPointerDown={handlePointerDown}
             wasDragged={getDragMoved}
+            fullHeight
           />
         )}
       </div>
