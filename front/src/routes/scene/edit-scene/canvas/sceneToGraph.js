@@ -22,13 +22,20 @@ export const NODE_TYPES = {
 // Espacement utilisé par le layout automatique (sceneToGraph).
 // H_SPACING : distance horizontale entre nœuds d'un même groupe.
 // V_SPACING : distance verticale entre groupes d'actions successifs.
+//
+// Toutes ces valeurs sont choisies pour que les positions calculées ici tombent
+// sur la grille d'aimantation du canvas (GRID_SIZE dans SceneCanvas.jsx) : sans
+// ça, le premier déplacement d'un bloc après « Réorganiser » le recalerait de
+// quelques pixels. Les X sont de la forme START_X + k × H_SPACING/2 - HALF_W,
+// donc START_X - HALF_W et H_SPACING/2 doivent être des multiples du pas ;
+// les Y de la forme START_Y + k × V_SPACING ou V_BRANCH_STEP, idem.
 const H_SPACING = 280;
 // Espacement vertical pour les flux séquentiels simples (sans branche If/Then/Else).
-const V_SPACING = 170;
+const V_SPACING = 180;
 // Espacement entre chaque rangée de nœuds à l'intérieur des branches If/Then/Else.
 // Inférieur au V_BRANCH_STEP d'origine pour que l'arête "Suite" reste courte.
 const V_BRANCH_STEP = 180;
-const START_X = 60;
+const START_X = 70;
 const START_Y = 60;
 // Largeur fixe de tous les nœuds — doit correspondre au CSS .node { width }
 // Utilisée pour convertir un X "centre" en X "coin supérieur gauche" (format React Flow).
