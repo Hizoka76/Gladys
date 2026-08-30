@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'preact/hooks'
 import ReactFlow, {
   addEdge,
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   useNodesState,
@@ -64,6 +65,29 @@ function loadSavedPositions(key) {
   }
 }
 
+// Pas de la grille d'aimantation, en pixels du canvas. Les constantes de layout
+// de sceneToGraph sont calées dessus, pour que « Réorganiser » pose les blocs
+// pile sur la grille au lieu de les décaler au premier déplacement.
+const GRID_SIZE = 20;
+// Ligne accentuée tous les 5 pas : garde un repère lisible une fois dézoomé,
+// quand les lignes fines se resserrent.
+const GRID_MAJOR_SIZE = GRID_SIZE * 5;
+
+// Clé localStorage de la préférence d'aimantation. Volontairement globale, et
+// non par scène comme les positions : c'est un réglage d'outil, pas une donnée
+// de la scène.
+const SNAP_KEY = 'gladys-canvas-snap';
+
+// Lit la préférence d'aimantation, active par défaut — y compris quand le
+// localStorage est inaccessible (navigation privée, stockage bloqué).
+function loadSnapPreference() {
+  try {
+    return localStorage.getItem(SNAP_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
 const SceneCanvas = ({ scene, saveScene, saving, variables, triggersVariables, setVariables, setVariablesTrigger }) => {
   // Stable key per scene — used to persist node positions in localStorage
   const positionsKey = scene.selector ? `gladys-canvas-pos-${scene.selector}` : null;
@@ -84,6 +108,18 @@ const SceneCanvas = ({ scene, saveScene, saving, variables, triggersVariables, s
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [graphWarnings, setGraphWarnings] = useState([]);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [snapEnabled, setSnapEnabled] = useState(loadSnapPreference);
+
+  // Bascule l'aimantation et mémorise le choix pour les scènes suivantes.
+  const toggleSnap = useCallback(() => {
+    setSnapEnabled(enabled => {
+      const next = !enabled;
+      try {
+        localStorage.setItem(SNAP_KEY, next ? 'true' : 'false');
+      } catch {}
+      return next;
+    });
+  }, []);
 
   const errorNodeIds = useMemo(() => {
     const ids = new Set();
@@ -546,8 +582,23 @@ const SceneCanvas = ({ scene, saveScene, saving, variables, triggersVariables, s
           fitView
           deleteKeyCode="Delete"
           multiSelectionKeyCode="Control"
+          snapToGrid={snapEnabled}
+          snapGrid={[GRID_SIZE, GRID_SIZE]}
         >
-          <Background color="#e2e8f0" gap={24} size={1} />
+          {snapEnabled ? (
+            <>
+              <Background id="grid-minor" variant={BackgroundVariant.Lines} gap={GRID_SIZE} size={1} color="#eef2f7" />
+              <Background
+                id="grid-major"
+                variant={BackgroundVariant.Lines}
+                gap={GRID_MAJOR_SIZE}
+                size={1}
+                color="#e2e8f0"
+              />
+            </>
+          ) : (
+            <Background color="#e2e8f0" gap={24} size={1} />
+          )}
           <Controls />
           <MiniMap nodeColor={miniMapNodeColor} pannable zoomable />
 
@@ -564,8 +615,15 @@ const SceneCanvas = ({ scene, saveScene, saving, variables, triggersVariables, s
                 <Text id="editScene.canvas.addBlock">Ajouter un bloc</Text>
               </button>
               <button class={`btn btn-sm btn-outline-secondary ${style.panelBtn}`} onClick={handleAutoLayout}>
-                <i class="fe fe-grid mr-1" />
+                <i class="fe fe-shuffle mr-1" />
                 <Text id="editScene.canvas.autoLayout">Réorganiser</Text>
+              </button>
+              <button
+                class={`btn btn-sm ${snapEnabled ? 'btn-secondary' : 'btn-outline-secondary'} ${style.panelBtn}`}
+                onClick={toggleSnap}
+              >
+                <i class="fe fe-grid mr-1" />
+                <Text id="editScene.canvas.snapToGrid">Grille</Text>
               </button>
               <button
                 class={`btn btn-sm btn-primary ${style.panelBtn}`}
