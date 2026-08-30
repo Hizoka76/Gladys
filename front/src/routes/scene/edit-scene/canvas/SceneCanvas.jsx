@@ -19,9 +19,11 @@ import { v4 as uuidv4 } from 'uuid';
 import TriggerNode from './nodes/TriggerNode';
 import ActionNode from './nodes/ActionNode';
 import ConditionNode from './nodes/ConditionNode';
+import MidArrowEdge from './MidArrowEdge';
 import {
   sceneToGraph,
   checkGraphIssues,
+  EDGE_TYPE,
   NODE_TYPES,
   getActionLabel,
   getActionIcon,
@@ -42,6 +44,11 @@ const nodeTypes = {
   [NODE_TYPES.CONDITION]: ConditionNode
 };
 
+// Une seule arête personnalisée : celle qui porte sa pointe au milieu du tracé.
+const edgeTypes = {
+  [EDGE_TYPE]: MidArrowEdge
+};
+
 const NODE_COLORS = {
   [NODE_TYPES.TRIGGER]: '#10b981',
   [NODE_TYPES.ACTION]: '#3b82f6',
@@ -49,7 +56,7 @@ const NODE_COLORS = {
 };
 
 const defaultEdgeOptions = {
-  type: 'smoothstep',
+  type: EDGE_TYPE,
   animated: false,
   markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
   style: { stroke: '#94a3b8', strokeWidth: 2 }
@@ -642,6 +649,7 @@ const SceneCanvas = ({
           onNodeDragStart={onNodeDragStart}
           onInit={setReactFlowInstance}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           fitView
           deleteKeyCode="Delete"
