@@ -662,9 +662,9 @@ const SceneCanvas = ({
           <MiniMap nodeColor={miniMapNodeColor} pannable zoomable />
 
           <Panel position="top-left">
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div class={style.panelToolbar}>
               <button
-                class={`btn btn-sm btn-outline-primary ${style.panelBtn}`}
+                class={`btn btn-sm btn-primary ${style.panelBtn}`}
                 onClick={() => {
                   setSelectorOpen(v => !v);
                   setSelectedNodeId(null);
@@ -678,7 +678,7 @@ const SceneCanvas = ({
                 <Text id="editScene.canvas.autoLayout">Réorganiser</Text>
               </button>
               <button
-                class={`btn btn-sm ${snapEnabled ? 'btn-secondary' : 'btn-outline-secondary'} ${style.panelBtn}`}
+                class={`btn btn-sm ${snapEnabled ? 'btn-success' : 'btn-outline-secondary'} ${style.panelBtn}`}
                 onClick={toggleSnap}
               >
                 <i class="fe fe-grid mr-1" />
