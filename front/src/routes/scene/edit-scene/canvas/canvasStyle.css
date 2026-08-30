@@ -50,9 +50,68 @@
   background: #f8fafc;
 }
 
-/* ─── Panel button ───────────────────────────────────────────────── */
+/* ─── Barre d'outils du canvas ─────────────────────────────────────
+   Les boutons gardent leurs classes Bootstrap et reçoivent le même traitement
+   que ceux de la barre d'actions du bas de page (.editFooter dans ../style.css)
+   sous le thème glass : pastilles sans bordure, remplies plutôt que cerclées.
+   Les variantes sont choisies pour dire la même chose qu'en bas de page —
+   btn-primary pour l'action principale, btn-outline-secondary pour le neutre,
+   btn-success pour l'état enfoncé de la bascule « Grille ».
+
+   L'ombre portée, elle, n'existe pas en bas de page : ici les boutons flottent
+   au-dessus du graphe et non sur une barre dépolie, il leur faut ce relief pour
+   se détacher d'un canvas chargé. */
+.panelToolbar {
+  display: flex;
+  gap: 6px;
+}
+
 .panelBtn {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+:global(.glass-theme) .panelBtn {
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+  padding: 0.35rem 0.9rem;
+}
+
+:global(.glass-theme) .panelBtn:global(.btn-success) {
+  background-color: var(--gl-ink);
+  color: #fff;
+}
+
+:global(.glass-theme) .panelBtn:global(.btn-success):hover {
+  background-color: #2a3550;
+  color: #fff;
+}
+
+:global(.glass-theme) .panelBtn:global(.btn-primary) {
+  background-color: var(--gl-icon-tint-bg);
+  color: var(--gl-accent);
+}
+
+:global(.glass-theme) .panelBtn:global(.btn-primary):hover {
+  background-color: #d3e2f8;
+  color: var(--gl-accent);
+}
+
+:global(.glass-theme) .panelBtn:global(.btn-outline-secondary) {
+  background-color: rgba(255, 255, 255, 0.82);
+  color: var(--gl-ink);
+}
+
+:global(.glass-theme) .panelBtn:global(.btn-outline-secondary):hover {
+  background-color: #fff;
+  color: var(--gl-ink);
+}
+
+/* Ces pastilles doivent s'inverser avec le thème en mode sombre, et non
+   conserver leurs couleurs au travers de la double inversion de dark-mode.css */
+:global(.dark-mode .glass-theme) .panelBtn:global(.btn-success),
+:global(.dark-mode .glass-theme) .panelBtn:global(.btn-primary) {
+  filter: none;
 }
 
 /* ─── Graph warnings ─────────────────────────────────────────────── */
@@ -97,7 +156,9 @@
   line-height: 1;
   opacity: 0.6;
 }
-.graphWarningClose:hover { opacity: 1; }
+.graphWarningClose:hover {
+  opacity: 1;
+}
 
 /* ─── Base node ──────────────────────────────────────────────────── */
 .node {
@@ -108,7 +169,7 @@
   border-radius: 8px;
   border: 2px solid transparent;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: box-shadow 0.15s, border-color 0.15s;
   cursor: default;
   font-size: 13px;
@@ -119,12 +180,21 @@
 }
 
 /* Selection glow — colour matches the node type border, no override needed */
-.triggerNode.nodeSelected   { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.50); }
-.actionNode.nodeSelected    { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.50); }
-.conditionNode.nodeSelected { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.50); }
+.triggerNode.nodeSelected {
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.5);
+}
+.actionNode.nodeSelected {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.5);
+}
+.conditionNode.nodeSelected {
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.5);
+}
 
 /* Error highlight — red outline when the node is part of a graph warning */
-.nodeError { outline: 2px solid #ef4444; outline-offset: 3px; }
+.nodeError {
+  outline: 2px solid #ef4444;
+  outline-offset: 3px;
+}
 
 /* ─── Badge affiché sur les nœuds sélectionnés ───────────────────── */
 .selectedBadge {
@@ -145,8 +215,12 @@
   /* default (action node) */
   background: #3b82f6;
 }
-.triggerNode   .selectedBadge { background: #10b981; }
-.conditionNode .selectedBadge { background: #f59e0b; }
+.triggerNode .selectedBadge {
+  background: #10b981;
+}
+.conditionNode .selectedBadge {
+  background: #f59e0b;
+}
 
 /* ─── Trigger node (green) ───────────────────────────────────────── */
 .triggerNode {
@@ -279,7 +353,6 @@
   transform: translate(-50%, -100%) !important;
 }
 
-
 /* ─── Single "Oui" handle label (non-branching condition nodes) ─── */
 .conditionHandleLabelYes {
   position: absolute;
@@ -339,7 +412,9 @@
   border-radius: 4px;
   line-height: 1;
 }
-.selectorClose:hover { background: #f1f5f9; }
+.selectorClose:hover {
+  background: #f1f5f9;
+}
 
 .selectorSearch {
   display: flex;
@@ -382,10 +457,17 @@
   text-align: center;
   transition: color 0.15s, border-color 0.15s;
 }
-.selectorTab:hover { color: #0f172a; }
+.selectorTab:hover {
+  color: #0f172a;
+}
 .selectorTab:focus,
-.selectorTab:focus-visible { outline: none; }
-.selectorTabActive { color: #3b82f6; border-bottom-color: #3b82f6; }
+.selectorTab:focus-visible {
+  outline: none;
+}
+.selectorTabActive {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
 
 .selectorList {
   overflow-y: auto;
@@ -519,7 +601,9 @@
   flex-shrink: 0;
   transition: background 0.15s;
 }
-.configPanelClose:hover { background: rgba(255, 255, 255, 0.35); }
+.configPanelClose:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
 
 .configPanelBody {
   flex: 1;
@@ -556,8 +640,12 @@
 }
 
 @keyframes edgeMarch {
-  from { stroke-dashoffset: 0; }
-  to   { stroke-dashoffset: -45; }
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -45;
+  }
 }
 
 /* Override Bootstrap card styles inside the config panel */
@@ -568,9 +656,9 @@
 /* Force toutes les colonnes Bootstrap à pleine largeur — le panneau fait ~380px,
    bien en dessous des breakpoints md/lg de Bootstrap, donc les colonnes doivent
    être empilées verticalement pour ne pas déborder ou se compresser. */
-.configPanelBody [class*="col-lg-"],
-.configPanelBody [class*="col-md-"],
-.configPanelBody [class*="col-sm-"] {
+.configPanelBody [class*='col-lg-'],
+.configPanelBody [class*='col-md-'],
+.configPanelBody [class*='col-sm-'] {
   width: 100% !important;
   max-width: 100% !important;
   flex: 0 0 100% !important;
