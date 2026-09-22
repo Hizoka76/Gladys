@@ -3608,16 +3608,28 @@
         "computedExplanationText": "En lugar de un volumen fijo, puede introducir aquí un cálculo basado en una variable de la escena, por ejemplo para hablar más bajo por la noche. Para insertar una variable, escriba \"{{\". Para establecer el valor de una variable, debe utilizar una casilla \"Establecer una variable\" u \"Obtener valor del dispositivo\" antes de esta.",
         "textLabel": "Mensaje que se dirá en el altavoz",
         "variablesExplanation": "Para insertar una variable, escriba \"{{\". Para establecer el valor de una variable, debe utilizar una casilla \"Establecer una variable\" u \"Obtener valor del dispositivo\" antes de esta."
+      },
+      "deviceCheckValue": {
+        "description": "La escena continuará únicamente si el estado actual del dispositivo seleccionado cumple la condición."
+      },
+      "calendarGetRunningEvent": {
+        "description": "Esta acción recupera el evento de calendario en curso y lo guarda en variables disponibles en el resto de la escena. Si no se encuentra ningún evento, las variables no se actualizarán.",
+        "calendarLabel": "Buscar en los siguientes calendarios compartidos",
+        "nameLabel": "Si el nombre",
+        "namePlaceholder": "Introduzca un nombre"
       }
     },
     "actions": {
       "calendar": {
         "is-event-running": "Condición sobre eventos del calendario",
-        "get-events": "Obtener eventos del calendario"
+        "get-events": "Obtener eventos del calendario",
+        "get-running-event": "Recuperar el evento de calendario en curso"
       },
       "device": {
         "get-value": "Obtener valor del dispositivo",
-        "set-value": "Establecer valor del dispositivo"
+        "set-value": "Establecer valor del dispositivo",
+        "check-value": "Condición sobre el estado del dispositivo",
+        "check-multi-value": "Condición sobre varios estados"
       },
       "message": {
         "send": "Enviar mensaje",
@@ -3709,7 +3721,9 @@
       },
       "device": {
         "set-value": "Enviar una orden a cualquier dispositivo",
-        "get-value": "Obtener el último valor de un sensor para usarlo más adelante"
+        "get-value": "Obtener el último valor de un sensor para usarlo más adelante",
+        "check-value": "Continuar la escena únicamente si un dispositivo está en el estado esperado",
+        "check-multi-value": "Continuar la escena únicamente si un dispositivo está en uno de varios estados"
       },
       "message": {
         "send": "Enviar una notificación (Telegram, aplicación...)",
@@ -3742,7 +3756,8 @@
       },
       "calendar": {
         "is-event-running": "Continuar según si un evento del calendario está en curso",
-        "get-events": "Obtener eventos del calendario para usarlos más adelante"
+        "get-events": "Obtener eventos del calendario para usarlos más adelante",
+        "get-running-event": "Recuperar el evento de calendario que está en curso"
       },
       "ecowatt": {
         "condition": "Continuar según la señal Ecowatt de la red eléctrica francesa"
@@ -3821,7 +3836,8 @@
     },
     "triggers": {
       "device": {
-        "new-state": "Cambio de estado del dispositivo"
+        "new-state": "Cambio de estado del dispositivo",
+        "multi-state": "Cambio de estado múltiple del dispositivo"
       },
       "time": {
         "changed": "Activador programado",
@@ -3867,7 +3883,8 @@
     },
     "triggersDescriptions": {
       "device": {
-        "new-state": "Cuando un sensor o un dispositivo cambia de estado"
+        "new-state": "Cuando un sensor o un dispositivo cambia de estado",
+        "multi-state": "Iniciar la escena cuando un dispositivo alcanza uno de varios estados"
       },
       "time": {
         "changed": "En un momento específico, una vez o de forma recurrente",
@@ -3939,7 +3956,8 @@
         "anyStateChangeNote": "La escena se iniciará cuando el dispositivo publique su primer valor, o un valor diferente del anterior, incluidas pequeñas variaciones de un sensor.",
         "onlyExecuteAtThreshold": "Ejecutar solo cuando se supere el umbral (y no en cada valor enviado por el dispositivo)",
         "activateOrDeactivateForDuration": "Ejecutar la escena después de que la condición haya sido válida durante:",
-        "multipleFeaturesNote": "Puede seleccionar varias funciones del mismo tipo: la escena se iniciará en cuanto una de ellas cumpla la condición."
+        "multipleFeaturesNote": "Puede seleccionar varias funciones del mismo tipo: la escena se iniciará en cuanto una de ellas cumpla la condición.",
+        "description": "La escena continúa si el dispositivo está en el estado indicado."
       },
       "scheduledTrigger": {
         "typeLabel": "Tipo",
@@ -4015,7 +4033,11 @@
         "durationPlaceholder": "Duración",
         "minute": "minutos",
         "hour": "horas",
-        "day": "días"
+        "day": "días",
+        "regex": "coincide con la expresión regular",
+        "regexPlaceholder": "Ej.: reunión.*(sala|oficina)",
+        "regexValid": "Expresión regular válida",
+        "regexInvalid": "Expresión regular no válida"
       },
       "alarmMode": {
         "alarm": {
@@ -4052,6 +4074,11 @@
           "severe": "Grave (naranja)",
           "extreme": "Extrema (rojo)"
         }
+      },
+      "multiState": {
+        "description": "La escena continúa si el dispositivo está en el estado o en uno de los estados indicados.",
+        "valuesLabel": "Valores desencadenantes",
+        "addValue": "Añadir un valor"
       }
     },
     "searchActionsPlaceholder": "Buscar una acción…",
@@ -4093,6 +4120,30 @@
       "outputsAvailable": "Resultados disponibles para los pasos siguientes:",
       "variablesHint": "Escriba '{{' para insertar información de la escena, como los datos transmitidos por el activador.",
       "requiredFieldError": "El campo \"{{field}}\" de \"{{title}}\" es obligatorio: no puede dejarse vacío."
+    },
+    "actionsCommentButton": "Comentar este paso",
+    "actionsCommentPlaceholder": "Añadir un comentario para este paso…",
+    "canvas": {
+      "addBlock": "Añadir un bloque",
+      "autoLayout": "Reorganizar",
+      "snapToGrid": "Cuadrícula",
+      "tabTriggers": "Desencadenantes",
+      "tabActions": "Acciones",
+      "tabConditions": "Condiciones",
+      "zoomIn": "Acercar",
+      "zoomOut": "Alejar",
+      "fitView": "Ajustar a la vista",
+      "lockGraph": "Bloquear el gráfico",
+      "unlockGraph": "Desbloquear el gráfico",
+      "nodeType": "Tipo",
+      "deleteNode": "Eliminar",
+      "canvasViewTitle": "Vista gráfica",
+      "listViewTitle": "Vista de lista",
+      "commentPlaceholder": "Comentario visible al pasar el cursor...",
+      "warningCycle": "Bucle detectado: el bloque «{{label}}» forma parte de una referencia circular (p. ej. A → B → A). El guardado está bloqueado hasta que se elimine el ciclo.",
+      "warningConvergence": "Convergencia detectada: el bloque «{{label}}» recibe conexiones de niveles distintos (p. ej. A → C y A → B → C). Elimine una de las conexiones o reestructúrela con un Si/Entonces/Si no.",
+      "warningDuplication": "Bloque «{{label}}»: las salidas Sí y No convergen en los mismos bloques, que se han duplicado en cada rama.",
+      "warningIncoherence": "Bloque «{{label}}»: hay bloques conectados a la salida Continuar que también están en una rama Sí/No; se ignorarán en el flujo principal."
     }
   },
   "profile": {
@@ -4481,7 +4532,23 @@
     "downloadLogsProgress": "Descargando {{downloaded}} de {{total}}...",
     "downloadLogsError": "No se pudieron descargar los registros. Asegúrese de que Gladys se esté ejecutando en Docker y vuelva a intentarlo.",
     "cpuTemperature": "Temperatura de la CPU",
-    "cpuTemperatureValue": "{{value}} °C"
+    "cpuTemperatureValue": "{{value}} °C",
+    "localBackupTitle": "Copia de seguridad y restauración local",
+    "localBackupSectionTitle": "Copia de seguridad",
+    "localBackupDescription": "Descargue un archivo completo de su base de datos de Gladys (SQLite + DuckDB). Guarde este archivo en un lugar seguro: le permitirá restaurar por completo su sistema en caso de reinstalación.",
+    "localBackupButton": "Descargar la copia de seguridad",
+    "localBackupInProgress": "Copia de seguridad en curso...",
+    "localBackupSuccess": "Copia de seguridad descargada correctamente.",
+    "localBackupError": "Se ha producido un error al crear la copia de seguridad. Consulte los registros para más detalles.",
+    "localRestoreSectionTitle": "Restauración",
+    "localRestoreDescription": "Seleccione un archivo de copia de seguridad (.tar.gz) creado anteriormente para restaurar por completo su configuración. Gladys se reiniciará automáticamente cuando finalice la restauración.",
+    "localRestoreButton": "Restaurar esta copia de seguridad",
+    "localRestoreUploading": "Enviando el archivo, espere un momento...",
+    "localRestoreStarted": "Restauración iniciada. Gladys se reiniciará en unos instantes. Vuelva a cargar la página después del reinicio.",
+    "localRestoreError": "Se ha producido un error durante la restauración. Compruebe que el archivo es una copia de seguridad válida de Gladys y consulte los registros.",
+    "localRestoreConfirmWarning": "Atención: esta operación reemplazará toda su configuración actual por la de la copia de seguridad. Esta acción es irreversible. ¿Desea continuar?",
+    "localRestoreConfirmYes": "Sí, restaurar",
+    "localRestoreConfirmNo": "Cancelar"
   },
   "newArea": {
     "createNewZoneButton": "Crear nueva zona",
