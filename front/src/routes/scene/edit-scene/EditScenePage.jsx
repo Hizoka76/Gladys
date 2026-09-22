@@ -102,6 +102,13 @@ const EditScenePage = ({ children, ...props }) => {
                       <small>{props.errorMessage}</small>
                     </div>
                   )}
+                  {props.errorMessageId && (
+                    <div class="mt-2">
+                      <small>
+                        <Text id={props.errorMessageId} fields={props.errorMessageFields} />
+                      </small>
+                    </div>
+                  )}
                 </div>
               )}
               {settingsOpen && (
@@ -140,6 +147,7 @@ const EditScenePage = ({ children, ...props }) => {
                   saving={props.saving}
                   variables={props.variables}
                   setVariablesTrigger={props.setVariablesTrigger}
+                  sceneIntegrations={props.sceneIntegrations}
                 />
               </div>
               <div class="row">
@@ -187,6 +195,7 @@ const EditScenePage = ({ children, ...props }) => {
                       setVariables={props.setVariables}
                       comment={(props.scene.actionsComments || [])[index] || ''}
                       updateComment={comment => props.updateActionGroupComment(index, comment)}
+                      sceneIntegrations={props.sceneIntegrations}
                     />
                   </div>
 
