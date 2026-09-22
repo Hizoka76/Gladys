@@ -22,6 +22,7 @@ import LevelSensorDeviceState from './device-states/LevelSensorDeviceState';
 import LevelMatterSensorDeviceState from './device-states/LevelMatterSensorDeviceState';
 import WaterValveDeviceState from './device-states/WaterValveDeviceState';
 import WaterHeaterModeDeviceState from './device-states/WaterHeaterModeDeviceState';
+import SmokeSensorContaminationDeviceState from './device-states/SmokeSensorContaminationDeviceState';
 
 // Operator the condition widgets settle on by default, and the one to go back to when the
 // "any state change" mode is turned off
@@ -197,6 +198,7 @@ class TurnOnLight extends Component {
     let levelMatterSensorDevice = false;
     let waterValveStatusDevice = false;
     let waterHeaterModeDevice = false;
+    let smokeContaminationDevice = false;
 
     if (selectedDeviceFeature && !anyStateChange) {
       const { category, type } = selectedDeviceFeature;
@@ -209,7 +211,8 @@ class TurnOnLight extends Component {
         type === DEVICE_FEATURE_TYPES.WATER_VALVE.AUTO_CLOSE_WHEN_WATER_SHORTAGE ||
         type === DEVICE_FEATURE_TYPES.WATER_VALVE.VALVE_WORK_STATE ||
         (category === DEVICE_FEATURE_CATEGORIES.WATER_HEATER &&
-          (type === DEVICE_FEATURE_TYPES.WATER_HEATER.BOOST || type === DEVICE_FEATURE_TYPES.WATER_HEATER.HEATING));
+          (type === DEVICE_FEATURE_TYPES.WATER_HEATER.BOOST || type === DEVICE_FEATURE_TYPES.WATER_HEATER.HEATING)) ||
+        (category === DEVICE_FEATURE_CATEGORIES.SMOKE_SENSOR && type === DEVICE_FEATURE_TYPES.SMOKE_SENSOR.MUTED);
       // Scoped to `push`: the locked "device seen" widget only makes sense for a heartbeat
       // sensor. A binary presence sensor (a camera reporting a person) shares the 'binary'
       // string with SWITCH, so it is already served by BinaryDeviceState above, and both
@@ -237,6 +240,9 @@ class TurnOnLight extends Component {
         type === DEVICE_FEATURE_TYPES.WATER_VALVE.CURRENT_DEVICE_STATUS;
       waterHeaterModeDevice =
         category === DEVICE_FEATURE_CATEGORIES.WATER_HEATER && type === DEVICE_FEATURE_TYPES.WATER_HEATER.MODE;
+      smokeContaminationDevice =
+        category === DEVICE_FEATURE_CATEGORIES.SMOKE_SENSOR &&
+        type === DEVICE_FEATURE_TYPES.SMOKE_SENSOR.CONTAMINATION_STATE;
     }
 
     const defaultDevice =
@@ -252,7 +258,8 @@ class TurnOnLight extends Component {
       !levelSensorDevice &&
       !levelMatterSensorDevice &&
       !waterValveStatusDevice &&
-      !waterHeaterModeDevice;
+      !waterHeaterModeDevice &&
+      !smokeContaminationDevice;
 
     // the mode is hidden for event-like features, but a trigger already saved with it (written
     // by hand or by the MCP tools) still shows the switch, so that it can be turned off
@@ -270,7 +277,8 @@ class TurnOnLight extends Component {
       !levelSensorDevice &&
       !levelMatterSensorDevice &&
       !waterValveStatusDevice &&
-      !waterHeaterModeDevice;
+      !waterHeaterModeDevice &&
+      !smokeContaminationDevice;
 
     return (
       <div>
@@ -302,6 +310,7 @@ class TurnOnLight extends Component {
           {waterHeaterModeDevice && (
             <WaterHeaterModeDeviceState {...props} selectedDeviceFeature={selectedDeviceFeature} />
           )}
+          {smokeContaminationDevice && <SmokeSensorContaminationDeviceState {...props} />}
           {defaultDevice && <DefaultDeviceState {...props} selectedDeviceFeature={selectedDeviceFeature} />}
         </div>
         {displayAnyStateChangeSwitch && (
