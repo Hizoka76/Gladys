@@ -82,23 +82,35 @@ const EditScenePage = ({ children, ...props }) => {
 
                 <div class="col-auto">
                   <div class="text-right d-flex flex-wrap justify-content-end align-items-center">
+                    {/* Below md the two buttons are icon-only, like the header actions next
+                        to them: the label stays as the accessible name of the button. */}
                     <div class={cx(style.viewToggle, 'mr-3')}>
-                      <button
-                        type="button"
-                        onClick={props.switchToListView}
-                        class={cx(style.viewToggleBtn, { [style.viewToggleBtnActive]: !props.canvasView })}
-                      >
-                        <i class="fe fe-list" />
-                        <Text id="editScene.canvas.listViewTitle" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={props.switchToCanvasView}
-                        class={cx(style.viewToggleBtn, { [style.viewToggleBtnActive]: props.canvasView })}
-                      >
-                        <i class="fe fe-share-2" />
-                        <Text id="editScene.canvas.canvasViewTitle" />
-                      </button>
+                      <Localizer>
+                        <button
+                          type="button"
+                          onClick={props.switchToListView}
+                          aria-label={<Text id="editScene.canvas.listViewTitle" />}
+                          class={cx(style.viewToggleBtn, { [style.viewToggleBtnActive]: !props.canvasView })}
+                        >
+                          <i class="fe fe-list" />
+                          <span class="d-none d-md-inline-block" aria-hidden="true">
+                            <Text id="editScene.canvas.listViewTitle" />
+                          </span>
+                        </button>
+                      </Localizer>
+                      <Localizer>
+                        <button
+                          type="button"
+                          onClick={props.switchToCanvasView}
+                          aria-label={<Text id="editScene.canvas.canvasViewTitle" />}
+                          class={cx(style.viewToggleBtn, { [style.viewToggleBtnActive]: props.canvasView })}
+                        >
+                          <i class="fe fe-share-2" />
+                          <span class="d-none d-md-inline-block" aria-hidden="true">
+                            <Text id="editScene.canvas.canvasViewTitle" />
+                          </span>
+                        </button>
+                      </Localizer>
                     </div>
                     <Localizer>
                       <button
