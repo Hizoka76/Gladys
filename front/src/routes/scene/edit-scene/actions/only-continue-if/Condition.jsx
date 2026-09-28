@@ -3,6 +3,7 @@ import { Text, Localizer } from 'preact-i18n';
 import Select from '../../../../../components/form/Select';
 import update from 'immutability-helper';
 
+import SelectDeviceFeature from '../../../../../components/device/SelectDeviceFeature';
 import SelectDeviceFeatureValue from '../../../../../components/device/SelectDeviceFeatureValue';
 import TextWithVariablesInjected from '../../../../../components/scene/TextWithVariablesInjected';
 import getDeviceFeatureValueOptions, { isValueInOptions } from '../../../../../utils/deviceFeatureValueOptions';
@@ -11,6 +12,11 @@ import withIntlAsProp from '../../../../../utils/withIntlAsProp';
 import style from './Condition.css';
 
 const getDeviceFeature = option => (option && option.data ? option.data.deviceFeature : null);
+
+// The variable holding the selector of the feature which fired the scene: its value is
+// picked from the list of devices, never typed, so the condition compares a stable
+// identity instead of a name a rename would invalidate.
+const isDeviceFeatureSelector = option => Boolean(option && option.data && option.data.deviceFeatureSelector);
 
 class Condition extends Component {
   // The current value can be displayed in the list only if it's a raw value present in that list
@@ -21,8 +27,14 @@ class Condition extends Component {
 
   handleChange = selectedOption => {
     const valueOptions = getDeviceFeatureValueOptions(this.props.intl.dictionary, getDeviceFeature(selectedOption));
+    // A value typed for another variable is meaningless for the device picker, which only
+    // accepts a feature selector: it is dropped when the variable really changes, never
+    // when the same one is picked again (that would clear a valid selection).
+    const variableChanged = (selectedOption ? selectedOption.value : null) !== this.props.condition.variable;
     // If the new variable only accepts a list of values, we drop the previous value if it's not in that list
-    const shouldResetValue = Boolean(valueOptions) && !this.isValueInValueOptions(valueOptions);
+    const shouldResetValue =
+      (isDeviceFeatureSelector(selectedOption) && variableChanged) ||
+      (Boolean(valueOptions) && !this.isValueInValueOptions(valueOptions));
 
     const newCondition = update(this.props.condition, {
       variable: {
@@ -38,6 +50,25 @@ class Condition extends Component {
     if (shouldResetValue) {
       this.setState({ customValue: false });
     }
+    this.props.handleConditionChange(this.props.index, newCondition);
+  };
+
+  // `SelectDeviceFeature` also calls back when it fails to resolve the saved selector
+  // (device deleted, list not loaded yet). The picker has no clear button in single mode,
+  // so a null can only come from that resolution: ignoring it keeps the saved condition
+  // instead of silently emptying it.
+  handleDeviceFeatureValueChange = deviceFeature => {
+    if (!deviceFeature) {
+      return;
+    }
+    const newCondition = update(this.props.condition, {
+      value: {
+        $set: deviceFeature.selector
+      },
+      evaluate_value: {
+        $set: undefined
+      }
+    });
     this.props.handleConditionChange(this.props.index, newCondition);
   };
 
@@ -170,6 +201,7 @@ class Condition extends Component {
     const selectedOption = this.getSelectedOption();
     const valueOptions = this.getValueOptions(selectedOption);
     const showValueOptions = this.shouldDisplayValueOptions(valueOptions, customValue);
+    const showDeviceFeaturePicker = isDeviceFeatureSelector(selectedOption);
     return (
       <div>
         <div class="row">
@@ -232,14 +264,20 @@ class Condition extends Component {
                   <Text id="global.requiredField" />
                 </span>
               </label>
-              {showValueOptions && (
+              {showDeviceFeaturePicker && (
+                <SelectDeviceFeature
+                  value={props.condition.value}
+                  onDeviceFeatureChange={this.handleDeviceFeatureValueChange}
+                />
+              )}
+              {!showDeviceFeaturePicker && showValueOptions && (
                 <SelectDeviceFeatureValue
                   options={valueOptions}
                   value={props.condition.value}
                   updateValue={this.handleValueOptionChange}
                 />
               )}
-              {!showValueOptions && (
+              {!showDeviceFeaturePicker && !showValueOptions && (
                 <Localizer>
                   <TextWithVariablesInjected
                     text={

@@ -8,8 +8,48 @@ import { RequestStatus } from '../../../utils/consts';
 import EditScenePage from './EditScenePage';
 import { computeRunningInfo, mergeRunningScenes } from '../runningInfo';
 
-import { ACTIONS, WEBSOCKET_MESSAGE_TYPES } from '../../../../../server/utils/constants';
+import { ACTIONS, EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../../../server/utils/constants';
 import { findMissingRequiredField, hasIntegrationSteps } from './sceneIntegrations';
+import withIntlAsProp from '../../../utils/withIntlAsProp';
+
+// The variables a device trigger exposes to the actions: which device fired the scene, and
+// the values which fired it ({{triggerEvent.device_name}}, see scene.triggers.js). They are
+// derived from the trigger type instead of being declared by the trigger component, because
+// the canvas only mounts a trigger's configuration panel while its node is selected: a
+// component-declared variable would be missing from the picker until the user opened it.
+const DEVICE_TRIGGER_TYPES = [EVENTS.DEVICE.NEW_STATE, EVENTS.DEVICE.MULTI_STATE];
+
+const DEVICE_TRIGGER_VARIABLES = [
+  { name: 'device_name', labelKey: 'editScene.variables.deviceTrigger.deviceName' },
+  // The feature selector is the stable identity of what fired the scene. A condition
+  // compares it through a device picker (`deviceFeatureSelector`, see Condition.jsx)
+  // instead of free text, so renaming the device cannot break the scene the way
+  // comparing its name would.
+  {
+    name: 'device_feature',
+    labelKey: 'editScene.variables.deviceTrigger.deviceFeature',
+    data: { deviceFeatureSelector: true }
+  },
+  { name: 'last_value', labelKey: 'editScene.variables.deviceTrigger.lastValue' },
+  { name: 'previous_value', labelKey: 'editScene.variables.deviceTrigger.previousValue' }
+];
+
+// Trigger variables seen by the editor: those a trigger declared itself (an external
+// integration reads them from its manifest, a calendar trigger hardcodes them) completed
+// by the ones every device trigger exposes.
+export const buildTriggersVariables = (triggers, declaredVariables, dictionary) =>
+  (triggers || []).map((trigger, index) => {
+    if (!DEVICE_TRIGGER_TYPES.includes(trigger.type)) {
+      return declaredVariables[index] || [];
+    }
+    return DEVICE_TRIGGER_VARIABLES.map(variable => ({
+      name: variable.name,
+      type: 'device-trigger',
+      ready: true,
+      label: get(dictionary, variable.labelKey),
+      data: variable.data || {}
+    }));
+  });
 
 const VARIABLES_ATTRIBUTES_IN_ACTION = {
   [ACTIONS.MESSAGE.SEND]: ['text'],
@@ -1676,7 +1716,7 @@ class EditScene extends Component {
             errorMessageId={errorMessageId}
             errorMessageFields={errorMessageFields}
             variables={variables}
-            triggersVariables={triggersVariables}
+            triggersVariables={buildTriggersVariables(scene.triggers, triggersVariables, props.intl.dictionary)}
             sceneIntegrations={sceneIntegrations}
             setVariables={this.setVariables}
             setVariablesTrigger={this.setVariablesTrigger}
@@ -1711,4 +1751,4 @@ class EditScene extends Component {
   }
 }
 
-export default connect('session,httpClient,user', {})(EditScene);
+export default connect('session,httpClient,user', {})(withIntlAsProp(EditScene));
