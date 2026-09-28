@@ -40,8 +40,42 @@ class OnlyContinueIf extends Component {
     }
   }
 
+  // The variables of the triggers of the scene, listed first: they are the only ones
+  // available before the first action has run. Several triggers all resolve to the single
+  // trigger event that fired, so a variable declared by several of them is listed once.
+  getTriggerVariableOptions = props => {
+    const options = [];
+    const seen = new Set();
+    (props.triggersVariables || []).forEach(triggerVariables => {
+      triggerVariables.forEach(triggerVariable => {
+        if (seen.has(triggerVariable.name)) {
+          return;
+        }
+        seen.add(triggerVariable.name);
+        options.push({
+          label: triggerVariable.label,
+          value: `triggerEvent.${triggerVariable.name}`,
+          type: triggerVariable.type,
+          data: triggerVariable.data
+        });
+      });
+    });
+    if (options.length === 0) {
+      return null;
+    }
+    return {
+      label: get(this.props.intl.dictionary, 'editScene.actionsCard.onlyContinueIf.triggerVariablesGroup'),
+      options
+    };
+  };
+
   render(props, {}) {
     const variableOptions = [];
+
+    const triggerVariableOptions = this.getTriggerVariableOptions(props);
+    if (triggerVariableOptions) {
+      variableOptions.push(triggerVariableOptions);
+    }
 
     Object.keys(props.variables).forEach(variablePath => {
       // If the variable is defined before the current path, we can use it

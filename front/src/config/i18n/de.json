@@ -3435,6 +3435,7 @@
         "textExplanationText": "Gib hier den Text ein, der an dein Gerät gesendet werden soll. Um eine Szenenvariable in den Text einzufügen, gib \"{{\" ein. Um einen Variablenwert festzulegen, musst du zuerst das Feld \"Eine Variable definieren\" oder \"Gerätewert abrufen\" verwenden."
       },
       "onlyContinueIf": {
+        "triggerVariablesGroup": "Auslöser der Szene",
         "variableLabel": "Variable",
         "operatorLabel": "Operator",
         "valueLabel": "Wert",
@@ -3786,6 +3787,12 @@
       "integrations": "Integrationen"
     },
     "variables": {
+      "deviceTrigger": {
+        "deviceName": "Name des auslösenden Geräts",
+        "deviceFeature": "Auslösendes Gerät (zum Vergleich in einer Bedingung)",
+        "lastValue": "Wert, der die Szene ausgelöst hat",
+        "previousValue": "Vorheriger Wert des Geräts"
+      },
       "device": {
         "get-value": {
           "last_value": "Letzter Gerätewert"

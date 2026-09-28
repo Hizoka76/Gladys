@@ -3435,6 +3435,7 @@
         "textExplanationText": "Entrez ici le texte à envoyer à votre appareil. Pour injecter une variable de scène dans le texte, tapez '{{'. Attention, vous devez avoir défini une variable auparavant dans une action 'Définir une variable' ou 'Récupérer le dernier état' placée avant ce bloc."
       },
       "onlyContinueIf": {
+        "triggerVariablesGroup": "Déclencheur de la scène",
         "variableLabel": "Variable",
         "operatorLabel": "Opérateur",
         "valueLabel": "Valeur",
@@ -3786,6 +3787,12 @@
       "integrations": "Intégrations"
     },
     "variables": {
+      "deviceTrigger": {
+        "deviceName": "Nom de l'appareil déclencheur",
+        "deviceFeature": "Appareil déclencheur (à comparer dans une condition)",
+        "lastValue": "Valeur qui a déclenché la scène",
+        "previousValue": "Valeur précédente de l'appareil"
+      },
       "device": {
         "get-value": {
           "last_value": "Dernière valeur de l'appareil"

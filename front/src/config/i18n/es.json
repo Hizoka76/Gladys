@@ -3435,6 +3435,7 @@
         "textExplanationText": "Introduzca aquí el texto que se enviará a su dispositivo. Para insertar una variable de la escena en el texto, pulse \"{{\". Para establecer el valor de una variable, debe utilizar una casilla \"Establecer una variable\" u \"Obtener valor del dispositivo\" antes de esta."
       },
       "onlyContinueIf": {
+        "triggerVariablesGroup": "Desencadenante de la escena",
         "variableLabel": "Variable",
         "operatorLabel": "Operador",
         "valueLabel": "Valor",
@@ -3786,6 +3787,12 @@
       "integrations": "Integraciones"
     },
     "variables": {
+      "deviceTrigger": {
+        "deviceName": "Nombre del dispositivo que ha activado la escena",
+        "deviceFeature": "Dispositivo que ha activado la escena (para comparar en una condición)",
+        "lastValue": "Valor que ha activado la escena",
+        "previousValue": "Valor anterior del dispositivo"
+      },
       "device": {
         "get-value": {
           "last_value": "Último valor del dispositivo"
