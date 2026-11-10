@@ -1,22 +1,6 @@
 const Promise = require('bluebird');
 const Handlebars = require('handlebars');
 const cloneDeep = require('lodash.clonedeep');
-const {
-  create,
-  addDependencies,
-  divideDependencies,
-  evaluateDependencies,
-  largerDependencies,
-  largerEqDependencies,
-  modDependencies,
-  multiplyDependencies,
-  roundDependencies,
-  smallerDependencies,
-  smallerEqDependencies,
-  subtractDependencies,
-  unaryMinusDependencies,
-  randomDependencies,
-} = require('mathjs');
 const set = require('set-value');
 const get = require('get-value');
 const dayjs = require('dayjs');
@@ -28,31 +12,17 @@ const { getDeviceFeature } = require('../../utils/device');
 const { AbortScene, SceneStopped, NotFoundError } = require('../../utils/coreErrors');
 const { compare } = require('../../utils/compare');
 const { parseJsonIfJson } = require('../../utils/json');
+const { isInTimeRanges, resolveTriggerTimeRanges } = require('../../utils/timeRanges');
+
+// How long the side a time-range trigger fired with is trusted, from the moment its job
+// fired: past it, the condition computes the state from the ranges again.
+const TIME_RANGE_TRUST_MS = 60 * 1000;
 const logger = require('../../utils/logger');
 const executeActionsFactory = require('./scene.executeActions');
+const { evaluate } = require('./scene.formula');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-// Every operator the formula engine supports must be listed explicitly here.
-// mathjs only exposes in the "math" namespace what is passed to create(), so an operator
-// that is only pulled in transitively by another factory (multiply through divide, for example)
-// is not guaranteed to stay available across mathjs releases.
-const { evaluate } = create({
-  addDependencies,
-  divideDependencies,
-  evaluateDependencies,
-  largerDependencies,
-  smallerDependencies,
-  largerEqDependencies,
-  modDependencies,
-  multiplyDependencies,
-  smallerEqDependencies,
-  subtractDependencies,
-  unaryMinusDependencies,
-  roundDependencies,
-  randomDependencies,
-});
 
 // Formats of the "date" variable of the "get date" action, by precision.
 // The date/time is truncated to the chosen precision, so a scene displaying "it's 14:30"
@@ -129,14 +99,25 @@ const actionsFunc = {
     }
 
     if (action.evaluate_value !== undefined) {
-      value = evaluate(
-        Handlebars.compile(action.evaluate_value, {
-          noEscape: true,
-        })(scope).replace(/\s/g, ''),
-      );
+      // A formula which cannot be evaluated (unknown function, wrong number of arguments)
+      // must not let the scene continue with the previous value: like the other formula
+      // actions, we abort the scene.
+      try {
+        value = evaluate(
+          Handlebars.compile(action.evaluate_value, {
+            noEscape: true,
+          })(scope).replace(/\s/g, ''),
+        );
+      } catch (e) {
+        logger.warn(`Device set value: Error evaluating value: ${action.evaluate_value}`);
+        logger.warn(e);
+        throw new AbortScene('ACTION_VALUE_NOT_A_NUMBER');
+      }
     }
 
-    if (Number.isNaN(Number(value))) {
+    // Infinity is rejected like NaN: a formula can overflow to it (exp(1000)) or reach it
+    // through a logarithm of zero (log(0)), and a device cannot be set to an infinite value.
+    if (!Number.isFinite(Number(value))) {
       throw new AbortScene('ACTION_VALUE_NOT_A_NUMBER');
     }
 
@@ -301,7 +282,10 @@ const actionsFunc = {
       }
     }
 
-    if (Number.isNaN(Number(value))) {
+    // Infinity is rejected like NaN: a formula can overflow to it (exp(1000)) or reach it
+    // through a logarithm of zero (log(0)), and Node fires a timer of an infinite delay after
+    // 1 ms, so the wait would be silently skipped instead of failing the scene.
+    if (!Number.isFinite(Number(value))) {
       logger.warn(`Delay: Value is not a number: ${value}`);
       throw new AbortScene('ACTION_VALUE_NOT_A_NUMBER');
     }
@@ -410,12 +394,18 @@ const actionsFunc = {
       // Read by message.reply, never sent to the chat API.
       service: action.service || null,
     };
-    const { answer } = await self.gateway.forwardMessageToAiChat({
+    const result = await self.gateway.forwardMessageToAiChat({
       message,
       image,
       context: {},
     });
-    set(scope, path, { answer }, { merge: true });
+    // the chat loop resolves null when the request failed (provider down or
+    // timed out, no usable answer): the user already got the failure reply,
+    // the scene stops here with an explicit reason instead of a TypeError
+    if (result === null) {
+      throw new AbortScene('AI_REQUEST_FAILED');
+    }
+    set(scope, path, { answer: result.answer }, { merge: true });
   },
   [ACTIONS.DEVICE.GET_VALUE]: async (self, action, scope, path) => {
     const deviceFeature = self.stateManager.get('deviceFeature', action.device_feature);
@@ -526,9 +516,12 @@ const actionsFunc = {
         }
       }
 
-      // For numeric comparison operators (>, >=, <, <=), value must be a number
+      // For numeric comparison operators (>, >=, <, <=), value must be a number.
+      // Infinity is rejected like NaN, as in the three other formula actions: a formula
+      // overflowing to it (exp(1000)) or reaching it through log(0) would otherwise make
+      // the comparison silently always true or always false instead of failing the scene.
       const numericOperators = ['>', '>=', '<', '<='];
-      if (numericOperators.includes(condition.operator) && Number.isNaN(Number(value))) {
+      if (numericOperators.includes(condition.operator) && !Number.isFinite(Number(value))) {
         throw new AbortScene('CONDITION_VALUE_NOT_A_NUMBER');
       }
 
@@ -923,6 +916,24 @@ const actionsFunc = {
       throw new AbortScene(e.message);
     }
   },
+  [ACTIONS.ENERGY_CONTRACT.CURRENT_PRICE]: async (self, action) => {
+    // current unit price of the contract (spec 8.2) compared with the threshold; an
+    // unknown price (null, spec 7.7) never validates the condition
+    const threshold = parseFloat(action.value);
+    if (Number.isNaN(threshold)) {
+      throw new AbortScene('CONDITION_VALUE_NOT_A_NUMBER');
+    }
+    let current;
+    try {
+      current = await self.energyContract.getCurrent(action.energy_contract);
+    } catch (e) {
+      // a contract that cannot be read (deleted, integration down) never validates
+      throw new AbortScene(e.message);
+    }
+    if (current.price === null || !compare(action.operator, current.price, threshold)) {
+      throw new AbortScene('ENERGY_PRICE_CONDITION_NOT_MET');
+    }
+  },
   [ACTIONS.ALARM.CHECK_ALARM_MODE]: async (self, action) => {
     const house = await self.house.getBySelector(action.house);
     if (house.alarm_mode !== action.alarm_mode) {
@@ -964,6 +975,26 @@ const actionsFunc = {
       warnIfInvalidJsonMessage('Zigbee2mqtt', action.topic, messageWithVariables);
       zigbee2mqttService.device.publish(action.topic, messageWithVariables);
     }
+  },
+  [ACTIONS.THERMOSTAT.SET_SCHEDULE]: async (self, action) => {
+    // Found in the stateManager whatever its status: `running` is what says it runs.
+    const thermostatService = self.service.getService('thermostat');
+    if (!thermostatService || !thermostatService.device.running) {
+      logger.warn(`Scene: the thermostat service is not running, schedule "${action.schedule}" not applied`);
+      return;
+    }
+    // One thermostat failing (deleted, moved to another house) leaves the others
+    // switched, like the light and switch actions. A card saved before any
+    // thermostat was picked has no list: nothing to switch.
+    await Promise.map(action.devices || [], async (deviceSelector) => {
+      try {
+        await thermostatService.device.attachScheduleToDevice(action.schedule, deviceSelector);
+      } catch (e) {
+        logger.warn(
+          `Scene: thermostat "${deviceSelector}" not switched to schedule "${action.schedule}": ${e.message}`,
+        );
+      }
+    });
   },
   [ACTIONS.EXTERNAL_INTEGRATION.SCENE_ACTION]: async (self, action, scope, path) => {
     // the proxy service of the integration, registered under its selector in
@@ -1027,10 +1058,17 @@ const actionsFunc = {
       volume = Math.min(100, Math.max(0, Math.round(volume)));
     }
 
-    // Get TTS URL
-    const { url } = await self.gateway.getTTSApiUrl({ text: messageWithVariables });
+    // Get the TTS URL from the active provider (Gladys Plus by default, or
+    // any TTS provider integration — see gladys.tts)
+    const { url } = await self.tts.getSpeechUrl({ text: messageWithVariables });
     // Play TTS Notification on device
     await self.device.setValue(device, deviceFeature, url, { volume });
+  },
+  [ACTIONS.MUSIC.PLAY_MEDIA]: async (self, action) => {
+    // the media id is opaque to the core and flows back to the integration that
+    // produced it (capabilities/music.md, section 7); a stopped or refusing
+    // integration makes the action throw, the scene framework logs it
+    await self.device.music.play(action.device, action.media, action.mode);
   },
   [ACTIONS.SMS.SEND]: async (self, action, scope) => {
     const freeMobileService = self.service.getService('free-mobile');
@@ -1099,6 +1137,52 @@ const actionsFunc = {
     }
     /* eslint-enable no-await-in-loop */
     logger.warn(`While loop: max number of iterations reached (${maxIterations}), stopping the loop.`);
+  },
+  [ACTIONS.CONDITION.IN_TIME_RANGE]: async (self, action, scope) => {
+    const scene = self.scenes[scope.sceneSelector];
+    const triggers = (scene && scene.triggers) || [];
+
+    // The scene was started by one of ITS OWN time-range jobs: the trigger already told us
+    // which side of the range fired, and we trust it rather than re-computing. A job firing
+    // exactly at the end of a range would otherwise be re-evaluated a few milliseconds
+    // later and could still be seen as "inside" it.
+    // The key check matters: `scene.start` hands the child scene a clone of the scope, so a
+    // scene called by another one sees the `triggerEvent` of its caller. Without it, the
+    // child would answer for the ranges of the parent instead of its own.
+    // Only for a moment, though: the side the trigger carries is the state at the boundary,
+    // and the condition may run long after it — behind a delay, or on every iteration of a
+    // "while", which kept a 12:00 -> 13:00 pump loop running past 13:00 until
+    // max_iterations. Past that moment, the state is computed like any other.
+    const triggerEventKey = get(scope, 'triggerEvent.key', { default: undefined });
+    const firedAt = get(scope, 'triggerEvent.fired_at', { default: undefined });
+    const firedByThisScene =
+      triggerEventKey !== undefined && triggers.some((trigger) => trigger.key === triggerEventKey);
+    const stillAtTheBoundary = typeof firedAt === 'number' && Date.now() - firedAt < TIME_RANGE_TRUST_MS;
+    let inRange =
+      firedByThisScene && stillAtTheBoundary ? get(scope, 'triggerEvent.in_range', { default: undefined }) : undefined;
+
+    // Started another way (manually, by another trigger of the same scene, or by another
+    // scene): the state is computed from the ranges of the scene's time-range triggers, so
+    // the condition still answers "are we inside the planning right now?".
+    if (inRange === undefined) {
+      const timeRanges = triggers
+        .filter((trigger) => trigger.scheduler_type === 'time-range')
+        .flatMap((trigger) => resolveTriggerTimeRanges(trigger));
+      if (timeRanges.length === 0) {
+        logger.warn('Time range condition: the scene has no time-range trigger.');
+        throw new AbortScene('NO_TIME_RANGE_TRIGGER');
+      }
+      inRange = isInTimeRanges(timeRanges, dayjs.tz(dayjs(), self.timezone));
+    }
+
+    // The action is used both as a "if/else" condition and as a "only continue if":
+    // being outside the range aborts the scene, which the if/else catches to run its
+    // "else" branch.
+    const shouldBeInRange = action.in_range !== false;
+    if (inRange !== shouldBeInRange) {
+      logger.debug(`Time range condition not verified: in_range = ${inRange}.`);
+      throw new AbortScene('TIME_RANGE_CONDITION_NOT_VERIFIED');
+    }
   },
   [ACTIONS.CONDITION.IF_THEN_ELSE]: async (self, action, scope, path) => {
     const { if: ifActions, then: thenActions, else: elseActions } = action;

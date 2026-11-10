@@ -59,7 +59,7 @@ describe('externalIntegration.validateManifest', () => {
   });
 
   it('should reject an unknown type', () => {
-    expect422({ ...TEST_MANIFEST, type: 'tts' }, 'type: must be one of device');
+    expect422({ ...TEST_MANIFEST, type: 'thermostat' }, 'type: must be one of device');
   });
 
   it('should reject a name out of bounds', () => {
@@ -515,11 +515,27 @@ describe('externalIntegration.validateManifest', () => {
     expect(validated).to.deep.equal(manifest);
   });
 
+  it('should accept select and multi_select fields with the houses dynamic source', () => {
+    const manifest = {
+      ...TEST_MANIFEST,
+      config_schema: [{ key: 'home', type: 'select', label: { en: 'House' }, source: 'houses' }],
+      actions: [
+        {
+          key: 'sync_houses',
+          label: { en: 'Sync houses' },
+          fields: [{ key: 'houses', type: 'multi_select', label: { en: 'Houses' }, source: 'houses' }],
+        },
+      ],
+    };
+    const validated = externalIntegration.validateManifest(manifest);
+    expect(validated).to.deep.equal(manifest);
+  });
+
   it('should reject invalid dynamic source usages', () => {
     // unknown source: the enum is reserved and defined by the core
     expect422(
       { ...TEST_MANIFEST, config_schema: [{ key: 'k', type: 'select', label: { en: 'L' }, source: 'rooms' }] },
-      'config_schema[0].source: must be one of devices',
+      'config_schema[0].source: must be one of devices, houses',
     );
     expect422(
       { ...TEST_MANIFEST, config_schema: [{ key: 'k', type: 'string', label: { en: 'L' }, source: 'devices' }] },
@@ -714,6 +730,24 @@ describe('externalIntegration.validateManifest', () => {
       { ...sendOnlyChannel, contact_schema: [{ ...section, label: { en: '{{port:ocpp}}' } }] },
       'contact_schema[0].label.en: {{port:ocpp}} is not available in the per-user contact schema',
     );
+  });
+
+  it('should accept the music capability field on device integrations, booleans only', () => {
+    const manifest = { ...TEST_MANIFEST, music: { browse: true, search: false, queue: true, append: false } };
+    expect(externalIntegration.validateManifest(manifest)).to.deep.equal(manifest);
+    expect(externalIntegration.validateManifest({ ...TEST_MANIFEST, music: {} })).to.deep.equal({
+      ...TEST_MANIFEST,
+      music: {},
+    });
+    expect422(
+      { ...TEST_MANIFEST, type: 'communication', music: { browse: true } },
+      'music: only allowed on device integrations',
+    );
+    expect422({ ...TEST_MANIFEST, music: 'yes' }, 'music: must be an object');
+    expect422({ ...TEST_MANIFEST, music: null }, 'music: must be an object');
+    expect422({ ...TEST_MANIFEST, music: [true] }, 'music: must be an object');
+    expect422({ ...TEST_MANIFEST, music: { lyrics: true } }, 'music.lyrics: unknown field');
+    expect422({ ...TEST_MANIFEST, music: { browse: 'yes' } }, 'music.browse: must be a boolean');
   });
 
   it('should accept a valid actions list', () => {
@@ -1181,6 +1215,48 @@ describe('externalIntegration.validateManifest', () => {
     });
   });
 
+  it('should accept a valid keywords declaration', () => {
+    const manifest = { ...TEST_MANIFEST, keywords: ['WiiM', 'Arylic', 'Audio Pro'] };
+    expect(externalIntegration.validateManifest(manifest)).to.deep.equal(manifest);
+  });
+
+  it('should reject a malformed keywords declaration', () => {
+    // not an array, empty, more than 10 terms, a term too short or too long,
+    // a non-string term, and duplicates once trimmed and lowercased
+    [
+      'wiim',
+      [],
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'].map((letter) => `${letter}${letter}`),
+      ['x'],
+      [' x '],
+      ['a'.repeat(31)],
+      [42],
+      ['WiiM', ' wiim'],
+    ].forEach((keywords) => {
+      expect422({ ...TEST_MANIFEST, keywords }, 'keywords: must be 1-10 unique strings of 2-30 characters');
+    });
+  });
+
+  it('should accept a valid countries declaration', () => {
+    const manifest = { ...TEST_MANIFEST, countries: ['FR', 'BE'] };
+    expect(externalIntegration.validateManifest(manifest)).to.deep.equal(manifest);
+  });
+
+  it('should reject a malformed countries declaration', () => {
+    // not an array, empty, more than 20 codes, lower case, not alpha-2,
+    // non-string items and duplicates
+    const tooMany = Array.from(
+      { length: 21 },
+      (value, i) => `${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + Math.floor(i / 26))}`,
+    );
+    ['FR', [], tooMany, ['fr'], ['FRA'], ['F1'], [null], ['FR', 'FR']].forEach((countries) => {
+      expect422(
+        { ...TEST_MANIFEST, countries },
+        'countries: must be 1-20 unique ISO 3166-1 alpha-2 codes (upper case)',
+      );
+    });
+  });
+
   it('should accept a valid categories declaration', () => {
     const manifest = { ...TEST_MANIFEST, categories: ['climate', 'energy'] };
     expect(externalIntegration.validateManifest(manifest)).to.deep.equal(manifest);
@@ -1282,6 +1358,52 @@ describe('externalIntegration.validateManifest', () => {
     expect422(
       { ...base, contact_schema: [{ key: 'account', type: 'account_link', label: { en: 'Account' } }] },
       'contact_schema[0].type: account_link is not allowed in the per-user contact schema',
+    );
+  });
+
+  it('should accept a calendar manifest with and without an account_schema', () => {
+    const calendarManifest = { ...TEST_MANIFEST, type: 'calendar', config_schema: undefined };
+    expect(externalIntegration.validateManifest(calendarManifest)).to.deep.equal(calendarManifest);
+    const withAccountSchema = {
+      ...calendarManifest,
+      account_schema: [
+        { key: 'server_url', type: 'string', label: { en: 'Server URL' }, required: true },
+        { key: 'app_password', type: 'secret', label: { en: 'App password' } },
+      ],
+    };
+    expect(externalIntegration.validateManifest(withAccountSchema)).to.deep.equal(withAccountSchema);
+  });
+
+  it('should reject account_schema outside calendar integrations and invalid entries', () => {
+    const accountSchema = [{ key: 'server_url', type: 'string', label: { en: 'Server URL' } }];
+    expect422({ ...TEST_MANIFEST, account_schema: accountSchema }, 'account_schema: only allowed on calendar');
+    const base = { ...TEST_MANIFEST, type: 'calendar', config_schema: undefined };
+    expect422({ ...base, account_schema: 'server_url' }, 'account_schema: must be an array');
+    expect422({ ...base, account_schema: [{ key: 'x', type: 'unknown', label: { en: 'X' } }] }, 'account_schema[0]');
+    // the Connect relay (oauth2 / account_link) is integration-scoped, never
+    // per user (milestone 1)
+    expect422(
+      { ...base, account_schema: [{ key: 'account', type: 'oauth2', label: { en: 'Account' } }] },
+      'account_schema[0].type: oauth2 is not allowed in the per-user account schema',
+    );
+    expect422(
+      { ...base, account_schema: [{ key: 'account', type: 'account_link', label: { en: 'Account' } }] },
+      'account_schema[0].type: account_link is not allowed in the per-user account schema',
+    );
+    // the per-user block carries no container state: {{port:<name>}} refused
+    expect422(
+      {
+        ...base,
+        account_schema: [
+          {
+            key: 'intro',
+            type: 'section',
+            label: { en: 'Setup' },
+            description: { en: 'ws://{{gladys_host}}:{{port:ocpp}}' },
+          },
+        ],
+      },
+      'account_schema[0].description.en: {{port:ocpp}} is not available in the per-user account schema',
     );
   });
 
