@@ -71,7 +71,6 @@ const actionSchema = Joi.object()
     service: Joi.string().allow(null),
     text: Joi.string(),
     name: Joi.string(),
-    operator: Joi.string().valid('=', '!=', '>', '>=', '<', '<='),
     value: Joi.alternatives().try(Joi.number(), Joi.string()),
     values: Joi.array().items(Joi.alternatives().try(Joi.number(), Joi.string())),
     evaluate_value: Joi.string(),
