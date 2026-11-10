@@ -54,6 +54,78 @@ Real devices rarely support the whole set: an air conditioner may only do cool +
 
 Option values are either **integers** (the enum-like case above) or **free strings**. String values exist for one specific situation: lists that no generic value set can describe because the values only exist on the appliance itself — installed TV apps, HDMI sources, vacuum rooms, native scenes. Those lists go through the dedicated `text` / `select` feature type: the integration declares the discovered choices as `supported_options` (`{ value: 'com.disney.disneyplus-prod', label: 'Disney+' }`), the UI shows the labels, and the selected value is the feature's state — stored as a string in `last_value_string`, with **no state history** (like `text`/`text`). Storage mirrors `last_value` / `last_value_string` on the feature itself: a string value lives in the option row's `value_string` column while the integer `value` column keeps a filler, and the model exposes whichever is set as one polymorphic `value` — an API consumer never sees the split. An integer and its string twin (`5` and `'5'`) are rejected as duplicates within a feature's options, and a string value on any feature other than `text`/`select` is rejected outright (`normalizeSupportedOptions` scopes the value domain by feature type). A dynamic select is **not** a way to bypass the taxonomy: a capability standards do cover (AC modes, fan speeds…) keeps its own category/type with integer values and translated labels.
 
+#### Worked example: `thermostat` / `preset`
+
+The thermostat category holds a `preset` type alongside `mode`, because the two
+answer different questions and compose rather than compete: **the mode says what
+the machine does** (off, heating, cooling, auto — a property of the equipment),
+**the preset says which temperature to aim for** (frost, away, eco, night,
+comfort — a property of the programme). This is the `hvac_mode` / `preset_mode`
+split of Home Assistant and the `system_mode` / `preset` split of Zigbee TRVs,
+and it is what makes a weekly schedule expressible: "heating" cannot be put in a
+time slot.
+
+It follows the rules above:
+
+- **integers, append-only** (rule 6): a preset is a capability standards cover,
+  so it keeps its own type with integer values and translated labels rather than
+  a `text`/`select`. `normalizeSupportedOptions` would reject string values on it
+  anyway;
+- **the full generic set** (rule 6): `frost` / `away` / `eco` / `night` /
+  `comfort` are the values branded thermostats share — Netatmo, Tado and Overkiz
+  all publish the same notion. A device supporting only some of them declares
+  that through `supported_options`;
+- **no unit** (`DEVICE_FEATURE_UNITS_BY_CATEGORY_AND_TYPE`): the category is a
+  temperature, but a preset, an active preset, a mode and an operating state
+  are enums.
+
+`off` is deliberately **not** a preset: stopping is a mode, and
+`THERMOSTAT_MODE.OFF` already carries it. A schedule transition may still say
+`off`, and it is applied as a mode write.
+
+`schedule` **is** one, and it is the one value that deserves an argument. It
+means "follow the weekly programme", which is Gladys's own control state rather
+than a temperature the equipment aims for. It is in the generic set because the
+notion is not Gladys-specific — Netatmo has `mode: schedule`, Tado has its Smart
+Schedule, and a Zigbee TRV has `preset: auto` — so an integration that gains it
+later must not have to invent a second spelling. But those are each _their own_
+programme, not Gladys's: an integration mapping a device's native "follow my
+programme" onto this value has to decide whether it means the appliance's
+schedule or Gladys's, and the two are not interchangeable. An integration that
+cannot answer that question simply leaves `schedule` out of its
+`supported_options`.
+
+Because `schedule` is a standing choice, the `preset` feature does not change
+when the programme moves from one point to the next, and a scene cannot start on
+it then. The read-only `active-preset` type (`THERMOSTAT_ACTIVE_PRESET`) carries
+the preset in force instead: the same integers, with `0` meaning stopped rather
+than `schedule` — a programme is never in force, one of its points is.
+
+Matter models the same notion, and rule 3 asks for the comparison. Since 1.4 the
+Thermostat cluster's Presets feature has an `ActivePresetHandle` attribute: an
+opaque handle into the device's own `Presets` list, each entry of which carries
+a `PresetScenarioEnum` (`Occupied`, `Unoccupied`, `Sleep`, `Wake`, `Vacation`,
+`GoingToSleep`, `UserDefined`) and its own setpoints. `active-preset` keeps the
+Gladys integers instead, for two reasons:
+
+- **a handle is not a value a scene can name.** It is meaningful only against one
+  device's list, which differs from one thermostat to the next, while a scene
+  trigger has to say "when Comfort starts" for any thermostat. The scenario is
+  the stable part, and it maps onto the generic set: `Occupied` and `Wake` →
+  `comfort`, `Sleep` and `GoingToSleep` → `night`, `Unoccupied` → `away`,
+  `Vacation` → `frost`. A future Matter integration reads the scenario of the
+  active entry and writes that integer; `UserDefined` has no generic meaning and
+  leaves the feature as it is.
+- **`0` means stopped**, where Matter keeps the stop on `SystemMode` and leaves
+  the handle null. A scene that starts when the heating stops is the most asked
+  for, and on one feature it needs no second trigger on the mode. A Matter
+  integration maps `SystemMode` `Off` to `0`, and a null handle with the system
+  running leaves the feature as it is.
+
+Matter also has `ActiveScheduleHandle` for the device's own weekly schedule:
+that is the appliance's programme, not Gladys's, for the reason given on
+`schedule` above, and it has no counterpart here.
+
 Consequence for reviews: "brand X only supports 3 of the 5 modes" is **never** a reason to create a narrower category, a brand-specific type, or a stripped-down enum. Keep the generic value set and let the integration declare what each device supports. The air-conditioning features are the reference example: the Matter service builds the `supported_options` of the AC mode feature from the Thermostat cluster's capability flags (heating/cooling/autoMode).
 
 ### 7. Naming conventions — renaming is the costly mistake
@@ -101,3 +173,5 @@ For any PR touching `DEVICE_FEATURE_CATEGORIES` / `DEVICE_FEATURE_TYPES`:
 ## Known legacy exceptions
 
 A few existing entries pre-date these rules and would not be accepted today, e.g. `teleinformation` (specific to French electricity meters) or `voc-matter-index-sensor` / `no2-matter-index-sensor` (protocol name embedded in the category). They are kept for backward compatibility but **must not be used as precedents** to justify new brand- or protocol-specific categories.
+
+`water-valve` / `flow` is the same kind of exception, to the rule that one physical quantity is not split across categories. It was added for the flow an irrigation valve reports about itself (SONOFF SWV), before `flow-sensor` existed, and Zigbee2mqtt still maps every `flow` expose to it. Moving it to `flow-sensor` / `decimal` would change the category, type, external id and selector of the features already stored, so it stays as it is. A new integration maps a volumetric flow rate to `flow-sensor` / `decimal`, whatever device measures it, including a valve; `water-valve` / `flow` is never cited as a precedent. Both accept the m³/h and m³/s units.

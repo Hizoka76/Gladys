@@ -47,6 +47,7 @@ const boxSchema = Joi.object().keys({
   clock_display_second: Joi.boolean(),
   camera_latency: Joi.string(),
   camera_live_auto_start: Joi.boolean(),
+  camera_ptz_controls: Joi.boolean(),
   scenes: Joi.array().items(Joi.string()),
   // scene box: optional live status subtitle per scene button (scene selector -> device feature selector)
   scene_status_features: Joi.object().pattern(Joi.string(), Joi.string()),
@@ -64,6 +65,8 @@ const boxSchema = Joi.object().keys({
   gauge_color_high: Joi.string(),
   colors: Joi.array().items(Joi.string()),
   show_subscription_prices: Joi.boolean(),
+  // energy-price box: the selector of the contract whose current price is shown
+  energy_contract: Joi.string(),
   period_start_day: Joi.number()
     .integer()
     .min(1)
@@ -171,6 +174,10 @@ const boxSchema = Joi.object().keys({
     .min(0)
     .max(3600),
   photo_show_caption: Joi.boolean(),
+  // thermostat box: the widget only chooses which thermostat to display.
+  // Every regulation setting (presets, hysteresis, TPI, switch, active schedule)
+  // lives on the device, so a dashboard can never drive the heating of the house.
+  thermostat_feature: Joi.string().allow(null),
 });
 
 // A dashboard is a stack of sections, each section holding its own columns

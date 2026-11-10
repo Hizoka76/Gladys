@@ -1,7 +1,24 @@
 const logger = require('../../../utils/logger');
+const { findOwnContainer } = require('../../../utils/dockerContainers');
 
 const mqttContainerDescriptor = require('../docker/gladys-z2m-mqtt-container.json');
 const zigbee2mqttContainerDescriptor = require('../docker/gladys-z2m-zigbee2mqtt-container.json');
+
+/**
+ * @description Stop and remove one of our containers. A container carrying our
+ * name but not created by Gladys is left untouched.
+ * @param {object} system - Gladys system module.
+ * @param {object} descriptor - Container descriptor.
+ * @example
+ * await removeOwnContainer(gladys.system, mqttContainerDescriptor);
+ */
+async function removeOwnContainer(system, descriptor) {
+  const container = await findOwnContainer(system, descriptor);
+  if (container) {
+    await system.stopContainer(container.id);
+    await system.removeContainer(container.id);
+  }
+}
 
 /**
  * @description Disconnect service from dependent containers.
@@ -9,8 +26,6 @@ const zigbee2mqttContainerDescriptor = require('../docker/gladys-z2m-zigbee2mqtt
  * disconnect();
  */
 async function disconnect() {
-  let container;
-
   // Stop backup reccurent job
   if (this.backupScheduledJob) {
     this.backupScheduledJob.cancel();
@@ -27,33 +42,25 @@ async function disconnect() {
   }
   this.gladysConnected = false;
   this.mqttConnectionError = null;
+  clearTimeout(this.healthCheckTimer);
+  this.healthCheckTimer = null;
   this.emitStatusEvent();
 
   // Stop & remove MQTT container
-  let dockerContainer = await this.gladys.system.getContainers({
-    all: true,
-    filters: { name: [mqttContainerDescriptor.name] },
-  });
-  if (dockerContainer.length > 0) {
-    [container] = dockerContainer;
-    await this.gladys.system.stopContainer(container.id);
-    await this.gladys.system.removeContainer(container.id);
-  }
+  await removeOwnContainer(this.gladys.system, mqttContainerDescriptor);
   this.mqttRunning = false;
+  this.mqttExist = false;
   this.emitStatusEvent();
 
   // Stop & remove zigbee2mqtt container
-  dockerContainer = await this.gladys.system.getContainers({
-    all: true,
-    filters: { name: [zigbee2mqttContainerDescriptor.name] },
-  });
-  if (dockerContainer.length > 0) {
-    [container] = dockerContainer;
-    await this.gladys.system.stopContainer(container.id);
-    await this.gladys.system.removeContainer(container.id);
-  }
+  await removeOwnContainer(this.gladys.system, zigbee2mqttContainerDescriptor);
+  // Without its container, Zigbee2mqtt is disabled, not "not responding"
+  this.zigbee2mqttExist = false;
   this.zigbee2mqttRunning = false;
   this.zigbee2mqttConnected = false;
+  clearTimeout(this.startingTimer);
+  this.startingTimer = null;
+  this.zigbee2mqttStarting = false;
   this.coordinatorFirmware = null;
   this.z2mContainerError = null;
   this.emitStatusEvent();

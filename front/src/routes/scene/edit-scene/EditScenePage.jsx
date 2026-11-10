@@ -211,6 +211,8 @@ const EditScenePage = ({ children, ...props }) => {
                       variables={props.variables}
                       setVariablesTrigger={props.setVariablesTrigger}
                       sceneIntegrations={props.sceneIntegrations}
+                      deviceFeatures={props.deviceFeatures}
+                      thermostatSchedules={props.thermostatSchedules}
                     />
                   </div>
                   <div class="row">

@@ -14,6 +14,7 @@ import MusicBox from '../../components/boxs/music/MusicBox';
 import EdfTempoBox from '../../components/boxs/edf-tempo/EdfTempo';
 import GaugeBox from '../../components/boxs/gauge/GaugeBox';
 import EnergyConsumptionBox from '../../components/boxs/energy-consumption/EnergyConsumption';
+import EnergyPriceBox from '../../components/boxs/energy-price/EnergyPrice';
 import VoiceAssistantBox from '../../components/boxs/voice-assistant/VoiceAssistantBox';
 import LinkBox from '../../components/boxs/link/LinkBox';
 import PhotoBox from '../../components/boxs/photo/PhotoBox';
@@ -23,6 +24,7 @@ import ActionsBox from '../../components/boxs/actions/ActionsBox';
 import HouseViewBox from '../../components/boxs/house-view/HouseViewBox';
 import ExternalWidgetBox from '../../components/boxs/external-widget/ExternalWidgetBox';
 import ErrorBoundary from '../../components/ErrorBoundary';
+import ThermostatBox from '../../components/boxs/thermostat/ThermostatBox';
 
 const BoxContent = ({ children, ...props }) => {
   switch (props.box.type) {
@@ -58,6 +60,8 @@ const BoxContent = ({ children, ...props }) => {
       return <GaugeBox {...props} />;
     case 'energy-consumption':
       return <EnergyConsumptionBox {...props} />;
+    case 'energy-price':
+      return <EnergyPriceBox {...props} />;
     case 'voice-assistant':
       return <VoiceAssistantBox {...props} />;
     case 'link':
@@ -74,6 +78,8 @@ const BoxContent = ({ children, ...props }) => {
       return <ActionsBox {...props} />;
     case 'external-widget':
       return <ExternalWidgetBox {...props} />;
+    case 'thermostat':
+      return <ThermostatBox {...props} />;
   }
 };
 

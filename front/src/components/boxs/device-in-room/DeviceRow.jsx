@@ -15,6 +15,7 @@ import CoverDeviceFeature from './device-features/CoverDeviceFeature';
 import SetpointDeviceFeature from './device-features/SetpointDeviceFeature';
 import AirConditioningModeDeviceFeature from './device-features/AirConditioningModeDeviceFeature';
 import ThermostatModeDeviceFeature from './device-features/ThermostatModeDeviceFeature';
+import ThermostatPresetDeviceFeature from './device-features/ThermostatPresetDeviceFeature';
 import FanModeDeviceFeature from './device-features/FanModeDeviceFeature';
 import FanLabeledSelectDeviceFeature from './device-features/FanLabeledSelectDeviceFeature';
 import AirConditioningFanSpeedDeviceFeature from './device-features/AirConditioningFanSpeedDeviceFeature';
@@ -30,6 +31,8 @@ import VacuumCleanerModeDeviceFeature from './device-features/VacuumCleanerModeD
 import VacuumCleanerCleanModeDeviceFeature from './device-features/VacuumCleanerCleanModeDeviceFeature';
 import WaterHeaterModeDeviceFeature from './device-features/WaterHeaterModeDeviceFeature';
 import TextSelectDeviceFeature from './device-features/TextSelectDeviceFeature';
+import MusicRepeatDeviceFeature from './device-features/MusicRepeatDeviceFeature';
+import MusicPlaybackStateDeviceFeature from './device-features/MusicPlaybackStateDeviceFeature';
 
 // DeviceRow is the per-FEATURE registry, and it is not only used by the dashboard widgets: the
 // MQTT catalog preview renders one mock feature through it. The light entries therefore stay,
@@ -123,12 +126,22 @@ const ROW_TYPE_BY_CATEGORY_AND_TYPE = {
     {}
   ),
   [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {
-    [DEVICE_FEATURE_TYPES.THERMOSTAT.MODE]: ThermostatModeDeviceFeature
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.MODE]: ThermostatModeDeviceFeature,
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.PRESET]: ThermostatPresetDeviceFeature
   },
   // A dynamic select: its options are string values discovered on the appliance by the
   // integration (installed TV apps, HDMI sources...), declared through supported_options
   [DEVICE_FEATURE_CATEGORIES.TEXT]: {
     [DEVICE_FEATURE_TYPES.TEXT.SELECT]: TextSelectDeviceFeature
+  },
+  // A music player's writable controls: a writable playback_state is a play/pause switch that
+  // knows the four-value enum (idle and buffering are not "playing"), shuffle and mute are
+  // on/off, repeat is a three-value mode
+  [DEVICE_FEATURE_CATEGORIES.MUSIC]: {
+    [DEVICE_FEATURE_TYPES.MUSIC.PLAYBACK_STATE]: MusicPlaybackStateDeviceFeature,
+    [DEVICE_FEATURE_TYPES.MUSIC.SHUFFLE]: BinaryDeviceFeature,
+    [DEVICE_FEATURE_TYPES.MUSIC.MUTE]: BinaryDeviceFeature,
+    [DEVICE_FEATURE_TYPES.MUSIC.REPEAT]: MusicRepeatDeviceFeature
   }
 };
 

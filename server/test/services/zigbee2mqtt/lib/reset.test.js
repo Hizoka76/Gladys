@@ -6,9 +6,15 @@ const { assert, fake } = sinon;
 
 const serviceId = 'f87b7af2-ca8e-44fc-b754-444354b42fee';
 
-const container = {
-  id: 'docker-test',
-};
+// Our own container, named after the requested filter
+const ownContainer = (options) =>
+  Promise.resolve([
+    {
+      id: 'docker-test',
+      name: `/${options.filters.name[0]}`,
+      labels: { 'io.gladysassistant.service': 'zigbee2mqtt' },
+    },
+  ]);
 
 const mqtt = {
   end: fake.resolves(true),
@@ -43,7 +49,7 @@ describe('zigbee2mqtt reset', () => {
         emit: fake.resolves(null),
       },
       system: {
-        getContainers: fake.resolves([container]),
+        getContainers: fake(ownContainer),
         stopContainer: fake.resolves(true),
         removeContainer: fake.resolves(true),
         getGladysBasePath: fake.resolves({
@@ -72,6 +78,7 @@ describe('zigbee2mqtt reset', () => {
     zigbee2MqttManager.z2mContainerError = { message: 'some error' };
     zigbee2MqttManager.mqttConnectionError = { code: 'BAD_CREDENTIALS', message: null };
     zigbee2MqttManager.discoveredDevices = { '0x1234': { friendly_name: 'lamp' } };
+    zigbee2MqttManager.lastBridgeDevices = [{ friendly_name: 'lamp', ieee_address: '0x1234' }];
     zigbee2MqttManager.topicBinds = { 'zigbee2mqtt/#': () => {} };
   });
 
@@ -111,6 +118,7 @@ describe('zigbee2mqtt reset', () => {
 
     // Should reset in-memory state
     expect(zigbee2MqttManager.discoveredDevices).to.deep.equal({});
+    expect(zigbee2MqttManager.lastBridgeDevices).to.equal(null);
     expect(zigbee2MqttManager.topicBinds).to.deep.equal({});
     expect(zigbee2MqttManager.usbConfigured).to.equal(false);
     expect(zigbee2MqttManager.networkAdapterConfigured).to.equal(false);
@@ -125,6 +133,8 @@ describe('zigbee2mqtt reset', () => {
     expect(zigbee2MqttManager.coordinatorFirmware).to.equal(null);
     expect(zigbee2MqttManager.z2mContainerError).to.equal(null);
     expect(zigbee2MqttManager.mqttConnectionError).to.equal(null);
+    expect(zigbee2MqttManager.startingTimer).to.equal(null);
+    expect(zigbee2MqttManager.healthCheckTimer).to.equal(null);
 
     // Host environment properties should be preserved
     expect(zigbee2MqttManager.dockerBased).to.equal(true);
