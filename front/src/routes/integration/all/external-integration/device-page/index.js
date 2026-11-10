@@ -9,12 +9,13 @@ import ExternalIntegrationPage from '../ExternalIntegrationPage';
 import DeviceTab from './DeviceTab';
 import { RequestStatus } from '../../../../../utils/consts';
 import { WEBSOCKET_MESSAGE_TYPES } from '../../../../../../../server/utils/constants';
+import { stripDeviceStatesForSave } from '../../../../../utils/device';
 
 class ExternalIntegrationDevicePage extends Component {
   getIntegration = async () => {
     try {
       const integration = await this.props.httpClient.get(`/api/v1/external_integration/${this.props.selector}`);
-      // communication, weather and provider integrations have no device screens:
+      // communication, weather, calendar and provider integrations have no device screens:
       // direct URL access lands on the configuration screen instead
       if (TYPES_WITHOUT_DEVICE_SCREENS.includes(get(integration, 'manifest.type'))) {
         route(`/dashboard/integration/device/external/${this.props.selector}/config`, true);
@@ -77,7 +78,7 @@ class ExternalIntegrationDevicePage extends Component {
 
   saveDevice = async index => {
     const device = this.state.devices[index];
-    const savedDevice = await this.props.httpClient.post('/api/v1/device', device);
+    const savedDevice = await this.props.httpClient.post('/api/v1/device', stripDeviceStatesForSave(device));
     const devices = update(this.state.devices, {
       $splice: [[index, 1, savedDevice]]
     });

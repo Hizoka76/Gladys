@@ -9,6 +9,7 @@ const { Error422 } = require('../../../utils/httpErrors');
 const { SERVICE_TYPES } = require('../../../utils/constants');
 const {
   buildSupervisor,
+  TEST_ENERGY_MANIFEST,
   seedExternalService,
   TEST_MANIFEST,
   TEST_COMMUNICATION_MANIFEST,
@@ -35,6 +36,20 @@ describe('externalIntegration.install', () => {
     expect(proxyService).to.have.property('start');
     expect(proxyService).to.have.property('stop');
     expect(proxyService).to.have.nested.property('device.setValue');
+  });
+
+  it('should declare the energy calendars of the manifest at install', async () => {
+    const { externalIntegration, energyContract } = buildSupervisor();
+    const integration = await externalIntegration.install({
+      dockerImage: 'ghcr.io/john/gladys-octopus-demo:1.2.0',
+      manifest: TEST_ENERGY_MANIFEST,
+    });
+    sinonAssert.calledWith(
+      energyContract.declareCalendar,
+      TEST_ENERGY_MANIFEST.energy_contracts.calendars[0],
+      integration.id,
+    );
+    externalIntegration.clearTimers(integration.id);
   });
 
   it('should install an integration in dev mode reading the manifest from image labels', async () => {
@@ -141,6 +156,8 @@ describe('externalIntegration.install', () => {
     const { externalIntegration } = buildSupervisor({
       system: {
         pull: fake.rejects(new Error('no matching manifest for linux/arm64')),
+        // nothing local to fall back on
+        imageExists: fake.resolves(false),
       },
     });
     try {
@@ -315,7 +332,7 @@ describe('externalIntegration.install', () => {
     const pull = sinon.stub();
     pull.withArgs('eclipse-mosquitto:2.0.18').rejects(new Error('NO_MATCHING_MANIFEST'));
     pull.resolves(true);
-    const { externalIntegration } = buildSupervisor({ system: { pull } });
+    const { externalIntegration } = buildSupervisor({ system: { pull, imageExists: fake.resolves(false) } });
     try {
       await externalIntegration.install({ manifest: TEST_CONTAINERS_MANIFEST });
       throw new Error('should have thrown');
