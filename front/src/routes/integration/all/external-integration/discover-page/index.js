@@ -9,6 +9,7 @@ import ExternalIntegrationPage from '../ExternalIntegrationPage';
 import DiscoverTab from './DiscoverTab';
 import { RequestStatus } from '../../../../../utils/consts';
 import { WEBSOCKET_MESSAGE_TYPES } from '../../../../../../../server/utils/constants';
+import { stripDeviceStatesForSave } from '../../../../../utils/device';
 
 // the scan runs inside the integration and ends with a re-publish of the
 // discovered devices (websocket event); an integration that never
@@ -42,7 +43,7 @@ class ExternalIntegrationDiscoverPage extends Component {
       if (generation !== this.pageGeneration) {
         return false;
       }
-      // communication, weather and provider integrations have no device screens:
+      // communication, weather, calendar and provider integrations have no device screens:
       // direct URL access lands on the configuration screen instead
       if (TYPES_WITHOUT_DEVICE_SCREENS.includes(get(integration, 'manifest.type'))) {
         route(`/dashboard/integration/device/external/${this.props.selector}/config`, true);
@@ -147,7 +148,7 @@ class ExternalIntegrationDiscoverPage extends Component {
     const device = { ...discoveredDevice };
     delete device.created;
     delete device.structure_changed;
-    await this.props.httpClient.post('/api/v1/device', device);
+    await this.props.httpClient.post('/api/v1/device', stripDeviceStatesForSave(device));
     await this.getDiscoveredDevices();
   };
 

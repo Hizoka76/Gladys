@@ -1,4 +1,12 @@
 {
+  "musicMediaTypes": {
+    "track": "Track",
+    "album": "Album",
+    "artist": "Artist",
+    "playlist": "Playlist",
+    "radio": "Radio",
+    "folder": "Folder"
+  },
   "global": {
     "logoAlt": "Gladys logo",
     "needHelpText": "Need help? Join us on <a href=\"https://community.gladysassistant.com/\" target=\"_blank\" rel=\"noopener noreferrer\"> Gladys Community</a>.",
@@ -83,6 +91,7 @@
       "unitMismatchWarning": "This feature has a different unit than the source feature: values are moved without conversion, so charts may become inconsistent.",
       "unmappedWarning": "Some features are not matched: their history will be deleted, and the scenes and dashboards using them will not be updated.",
       "playNotificationWarning": "The destination device cannot play notifications: the scenes that \"talk on\" this speaker will be re-pointed to the destination, and will fail when they run. Pick a destination that supports notifications, or edit those scenes after the migration.",
+      "playMediaWarning": "The scenes that play music (a playlist, an album, a track) on this player keep media references that belong to its integration: they will be re-pointed to the destination and will only work if the destination uses the same music provider. Check those scenes after the migration.",
       "noDestinationAvailable": "No device from another integration was found. Create the destination device in its new integration first, then come back here to migrate.",
       "loadError": "Unable to load the list of devices. Please try again.",
       "migrateError": "The migration failed. The old device was not deleted, but some history may already have been moved to the destination. Check the jobs page and your device list, then try again: re-running only moves what remains to migrate.",
@@ -109,6 +118,19 @@
     "room": "Room",
     "integration": "Integration",
     "features": "Features",
+    "orderByStatesDesc": "Most verbose first",
+    "verbose": {
+      "badge": "Very verbose",
+      "details": "{{count}} states saved in {{hours}}h ({{features}})",
+      "detailsWithoutFeatures": "{{count}} states saved in {{hours}}h",
+      "summary": {
+        "one": "1 very verbose device accounts for {{percent}}% of the states saved in the history over the last {{hours}} hours.",
+        "other": "{{count}} very verbose devices account for {{percent}}% of the states saved in the history over the last {{hours}} hours."
+      },
+      "explanation": "A device is flagged when one of its features saves at least {{threshold}} states in {{hours}} hours. If you don't need this history, turn it off from the device page to keep the database lighter.",
+      "showOnlyVerbose": "Show only these devices",
+      "showAll": "Show all devices"
+    },
     "emptyState": "No device found. Add devices from the integrations page, or adjust your search and filters.",
     "emptyStateButton": "Browse integrations",
     "error": "There was an error loading the devices. Please try again later.",
@@ -337,6 +359,8 @@
     "editDashboardSavedButton": "Saved",
     "editDashboardDoneButton": "Done",
     "gatewayInstanceNotFoundError": "Your Gladys instance is not connected to the Gladys Gateway",
+    "gatewayRecoveryCodesMissing": "Your Gladys Plus account has no recovery codes: if you lose access to your two-factor app, you will no longer be able to log in. Generate them and keep them in a safe place.",
+    "gatewayRecoveryCodesMissingButton": "Get my recovery codes",
     "editDashboardNameLabel": "Name",
     "editDashboardVisibility": "Visibility",
     "editDashboardVisibilityDescription": "Public dashboards will be visible to all members of the Gladys installation.",
@@ -391,7 +415,9 @@
       "chips": "Status chips",
       "actions": "Quick actions",
       "house-view": "House view",
-      "external-widget": "Integration widget"
+      "external-widget": "Integration widget",
+      "thermostat": "Thermostat",
+      "energy-price": "Electricity price"
     },
     "boxes": {
       "column": "Column {{index}}",
@@ -675,7 +701,7 @@
         "error": "Error loading energy consumption data",
         "noData": "No energy consumption data available for this period",
         "showSubscriptionPrices": "Show subscription prices",
-        "showSubscriptionPricesDescription": "Display the monthly subscription cost alongside consumption data in the chart.",
+        "showSubscriptionPricesDescription": "Display the monthly subscription cost of the meter's contract alongside consumption data in the chart.",
         "periodStartDay": "Billing period start day",
         "periodStartDayDescription": "Day of the month your energy bill period starts on. The monthly and yearly views then run from this day to the same day of the next period (ex: from the 5th to the 5th), so they can be compared with your bill. If a month is shorter than this day, the period starts on the last day of that month."
       },
@@ -735,13 +761,45 @@
         "cancelAlarmArming": "Cancel"
       },
       "music": {
-        "selectDeviceLabel": "Select device to control"
+        "selectDeviceLabel": "Select device to control",
+        "nothingPlaying": "Nothing playing",
+        "unknownTrack": "Unknown track",
+        "previous": "Previous",
+        "next": "Next",
+        "play": "Play",
+        "pause": "Pause",
+        "shuffle": "Shuffle",
+        "repeat": "Repeat",
+        "mute": "Mute",
+        "volume": "Volume",
+        "queue": "Queue",
+        "browse": "Browse",
+        "search": "Search",
+        "searchPlaceholder": "Songs, artists, playlists…",
+        "back": "Back",
+        "close": "Close",
+        "playItem": "Play",
+        "playNext": "Play next",
+        "addToQueue": "Add to queue",
+        "added": "Added to queue",
+        "playAll": "Play",
+        "pickThis": "Choose",
+        "live": "Live",
+        "commandFailed": "The player could not run this command.",
+        "noResponse": "The player did not respond.",
+        "emptyQueue": "The queue is empty",
+        "noResults": "No results",
+        "loading": "Loading…",
+        "loadMore": "Load more",
+        "unavailable": "The integration is unavailable. The last known state is shown.",
+        "error": "Something went wrong."
       },
       "voice-assistant": {
         "speak": "Speak",
         "stop": "Stop",
+        "send": "Send",
         "listening": "Listening...",
-        "listeningHint": "Speak now. Recording stops when you are silent.",
+        "listeningHint": "Speak now. Recording stops when you are silent, or press Send.",
         "processing": "Processing...",
         "speaking": "Speaking...",
         "transcriptionLabel": "You said",
@@ -848,7 +906,82 @@
         "emptyChart": "No data for this period yet.",
         "now": "Now",
         "confirmAction": "Run \"{{label}}\"?",
-        "actionError": "The action failed."
+        "actionError": "The action failed.",
+        "actionFormSend": "Send",
+        "actionFormInvalid": "Invalid value",
+        "actionFormClose": "Close",
+        "actionFormInvalidField": "Invalid value: {{label}}"
+      },
+      "energyPrice": {
+        "editName": "Widget name (optional)",
+        "editNamePlaceholder": "Name displayed on the dashboard",
+        "editContract": "Electricity contract",
+        "noContract": "No electricity contract yet.",
+        "noContractLink": "Create one in the energy monitoring integration.",
+        "notConfigured": "Select a contract in the widget settings.",
+        "until": "Until {{time}}",
+        "unknownPrice": "Price unknown",
+        "error": "Unable to load the electricity price. Check that the contract still exists.",
+        "cumulativeToday": "Today: {{kwh}} kWh"
+      },
+      "thermostat": {
+        "defaultTitle": "Thermostat",
+        "editNameLabel": "Widget Name (optional)",
+        "editNamePlaceholder": "e.g. Living Room Thermostat",
+        "thermostatFeatureLabel": "Thermostat feature (setpoint)",
+        "thermostatFeatureHelp": "Select the feature that controls the target temperature.",
+        "selectPlaceholder": "Select...",
+        "inactive": "Inactive",
+        "current": "Current",
+        "modeHeating": "Heating Mode",
+        "modeCooling": "Cooling Mode",
+        "modeOff": "Off Mode",
+        "noConfig": "Please configure the widget by clicking the edit button.",
+        "manualMode": "Manual mode",
+        "scheduleLabel": "Schedule:",
+        "scheduleUntil": "until",
+        "manualUntil": "until",
+        "untilTomorrow": "tomorrow",
+        "untilDays": {
+          "0": "Monday",
+          "1": "Tuesday",
+          "2": "Wednesday",
+          "3": "Thursday",
+          "4": "Friday",
+          "5": "Saturday",
+          "6": "Sunday"
+        },
+        "untilNextDays": {
+          "0": "next Monday",
+          "1": "next Tuesday",
+          "2": "next Wednesday",
+          "3": "next Thursday",
+          "4": "next Friday",
+          "5": "next Saturday",
+          "6": "next Sunday"
+        },
+        "cancelManual": "Cancel manual mode",
+        "windowOpen": "Window open — heating suspended",
+        "windowOpenCooling": "Window open — cooling suspended",
+        "pilotWireHeating": "Heating",
+        "pilotWireStandby": "Standby: setpoint reached",
+        "pilotWireOrderCurrent": "Order: {{order}}",
+        "pilotWireOrderPending": "Sending the {{order}} order…",
+        "a11ySetpoint": "Setpoint",
+        "a11yCurrentTemp": "Current temperature",
+        "a11yHumidity": "Humidity",
+        "error": "Error loading thermostat data.",
+        "preset": {
+          "off": "Off",
+          "frost": "Frost protection",
+          "away": "Away",
+          "comfort": "Comfort",
+          "eco": "Eco",
+          "night": "Night"
+        },
+        "backToSchedule": "Back to the schedule",
+        "resumeFromStopped": "Start the thermostat",
+        "presetPending": "{{preset}} (applied when it starts again)"
       }
     },
     "editDashboardBackgroundLabel": "Background mood",
@@ -905,20 +1038,51 @@
       "external": "Community",
       "native": "Native",
       "deprecated": "Soon deprecated",
-      "new": "New"
+      "new": "New",
+      "installed": "Installed"
     },
     "root": {
       "title": "Integrations",
       "subtitle": "{{length}} of {{total}} integrations",
       "subtitleTotal": "{{total}} integrations",
+      "loadingCatalog": "Loading the catalog…",
       "searchPlaceholder": "Search an integration",
       "noIntegrations": "No integration found",
+      "showMore": {
+        "one": "Show 1 more integration",
+        "other": "Show more integrations ({{count}} remaining)"
+      },
+      "storeUnavailable": "The community integration store could not be reached: only the native integrations and the ones already installed are shown.",
+      "storeUnavailableRetry": "Retry",
       "allIntegrationsUpToDate": "All your integrations are up to date.",
+      "updateButton": "Update",
+      "updateRetryButton": "Retry",
+      "updateError": "The update failed. Check the integration logs, then retry.",
+      "updatedTo": "Updated to v{{version}}",
       "noInstalledIntegrations": "No community integration is installed on this instance yet.",
       "installedSummary": {
         "title": {
           "one": "1 community integration installed on this instance.",
           "other": "{{count}} community integrations installed on this instance."
+        }
+      },
+      "updateAll": {
+        "title": {
+          "one": "1 update available",
+          "other": "{{count}} updates available"
+        },
+        "description": "Integrations are updated one after the other: each container restarts on its new version.",
+        "button": "Update all",
+        "progress": "Updating {{name}} ({{current}} of {{total}})…",
+        "keepPageOpen": "Keep the Integrations catalog open until the end: you can switch views, but leaving the catalog stops the remaining updates.",
+        "waitCardUpdate": "An integration is being updated from its card: \"Update all\" is available once it ends.",
+        "success": {
+          "one": "The integration has been updated.",
+          "other": "The {{total}} integrations have been updated."
+        },
+        "failed": {
+          "one": "1 of {{total}} updates failed. Open the integration to check its logs and retry:",
+          "other": "{{failed}} of {{total}} updates failed. Open each integration to check its logs and retry:"
         }
       },
       "noSearchResults": "No integration matching \"{{searchKeyword}}\" was found.",
@@ -937,6 +1101,17 @@
         "description": "Many devices can be connected via <a href=\"/dashboard/integration/device/matter\">Matter</a> (universal protocol). Your device can also be supported by a community <b>external integration</b>: anyone can create one and publish it in the store, it then appears in this list. See the <a href=\"https://gladysassistant.com/docs/dev/external-integrations/\" target=\"_blank\" rel=\"noopener noreferrer\">external integrations documentation</a>."
       },
       "orderDirNewest": "Newest first",
+      "orderDirUpdated": "Last updated",
+      "clearFilters": "Clear filters",
+      "countryFilter": {
+        "scoped": {
+          "one": "Country: {{country}}. 1 integration from another country is hidden.",
+          "other": "Country: {{country}}. {{count}} integrations from other countries are hidden."
+        },
+        "showAll": "Show all countries",
+        "all": "All countries are shown.",
+        "showOnly": "Limit to {{country}}"
+      },
       "menu": {
         "all": "All integrations",
         "favorites": "Favorites",
@@ -953,11 +1128,14 @@
         "network": "Network & presence",
         "notifications": "Messaging & notifications",
         "assistants": "Voice assistants & AI",
-        "services": "Services"
+        "services": "Services",
+        "transport": "Transport & mobility",
+        "vehicles": "Vehicles & EV charging",
+        "servers": "Servers & self-hosting",
+        "leisure": "Leisure, sport & games"
       }
     },
     "externalIntegration": {
-      "updateAvailable": "Update available",
       "deviceTab": "Devices",
       "discoverTab": "Discover",
       "configTab": "Configuration",
@@ -979,7 +1157,18 @@
         "openRawLink": "Open in a new tab"
       },
       "config": {
+        "aiProviderActive": "This integration is the AI provider of the assistant: the conversations with the assistant are sent to it.",
+        "aiProviderInactive": "This integration is installed but the assistant does not use it yet: select it as the AI provider of the instance to route the chat, the scene “Ask AI” actions and the weekly digest through it instead of Gladys Plus.",
+        "aiProviderUseButton": "Use as AI provider",
+        "aiProviderSettingsLink": "Open the AI settings",
+        "aiProviderError": "Unable to change the AI provider of the instance. Please try again.",
+        "aiProviderLoadError": "Unable to read the AI provider of the instance.",
+        "aiProviderChecking": "Checking whether this integration is the AI provider of the assistant…",
         "title": "Configuration",
+        "ttsVoiceActive": "This integration is the voice of your instance: scene announcements and voice assistant replies speak through it.",
+        "ttsVoiceActiveNotRunning": "This integration is the voice of your instance, but it is not running: scene announcements and voice assistant replies will fail until it is restarted.",
+        "ttsVoiceInactive": "This integration is not the voice of your instance (the active voice is \"{{name}}\"). Installing it is not enough: select it as the voice to use it.",
+        "ttsVoiceChangeLink": "Change the voice of the instance",
         "docsLink": "Documentation",
         "loadError": "There was an error loading the configuration.",
         "noConfig": "This integration has no configuration options.",
@@ -1056,6 +1245,11 @@
         "containerStopped": "Stopped",
         "openButton": "Open",
         "uninstallWarning": "Are you sure you want to uninstall this integration? Its container and configuration will be removed. Devices created by this integration will stay in Gladys until you delete them.",
+        "uninstallCalendarWarning": "Are you sure you want to uninstall this integration? Its container and configuration will be removed, and the calendars it created will be deleted, with their events, for every user of the household — not only yours.",
+        "uninstallEnergyWarning": "This integration prices energy contracts itself: the contracts it prices will stop being priced once it is uninstalled (their existing costs are kept).",
+        "uninstallAiProviderWarning": "This integration is the AI provider of the assistant: once uninstalled, the assistant switches back to Gladys Plus (or stops answering until a provider is available, without Gladys Plus).",
+        "uninstallAiProviderUnknownWarning": "Gladys could not check whether this integration is the AI provider of the assistant: if it is, the assistant switches back to Gladys Plus once it is uninstalled (or stops answering until a provider is available, without Gladys Plus).",
+        "uninstallAiProviderCheckingWarning": "Checking whether this integration is the AI provider of the assistant…",
         "confirmUninstallButton": "Yes, uninstall",
         "cancelUninstallButton": "Cancel",
         "startedAtLabel": "Running since"
@@ -1141,6 +1335,7 @@
       },
       "install": {
         "notFound": "This integration was not found in the store.",
+        "loadError": "This integration could not be loaded from the store. Check the internet connection of your Gladys and try again.",
         "starsLabel": "stars",
         "lastPushLabel": "Last update:",
         "warningTitle": "Community integration",
@@ -1164,9 +1359,19 @@
         "webhooksText": "This integration will be able to receive the following events from the Internet through the Gladys Plus relay (requires a Gladys Plus subscription and an Open API key).",
         "notificationWarningText": "This integration is a notification channel: it will be able to send you messages, but it can never receive messages nor act on your behalf (server-side guarantee).",
         "weatherInfoText": "This integration is a weather provider: once installed, it will provide the weather displayed in Gladys (dashboard widget and assistant).",
+        "calendarInfoText": "This integration is a calendar provider: once installed, it will create calendars and events in Gladys for the users who enable it with their own account.",
+        "ttsInfoText": "This integration is a text-to-speech provider: once installed, select it as the voice of your instance in the Artificial Intelligence integration. Announcements are served on your local network — speakers and browsers on the same network can play them.",
+        "ttsInfoLink": "Open the Artificial Intelligence integration",
         "widgetsTitle": "Dashboard widgets",
         "widgetsText": "This integration provides the following widgets, available to every user in the dashboard editor:",
+        "energyContractsTitle": "Energy contracts",
+        "energyContractsText": "This integration provides the following energy contract templates, offered in the contract wizard of the energy monitoring page:",
+        "energyContractsDelegated": "priced by the integration",
+        "energyContractsCalendars": "Tariff calendars fed by this integration:",
+        "energyContractsDelegatedText": "A template priced by the integration computes your energy costs itself: the costs of these contracts are only computed while the integration is running, and stop being computed if it is uninstalled.",
         "providerInfoText": "This integration manages no device: it provides dashboard widgets. Configure it here, then add its widgets from the dashboard editor.",
+        "providerEnergyInfoText": "This integration manages no device: it provides energy contract templates and tariff calendars. Configure it here, then pick its contracts from the energy monitoring page.",
+        "aiWarningText": "This integration is an AI provider: if an administrator selects it as the AI provider of the instance (Integrations → Artificial Intelligence → AI provider, or the button on this integration's configuration screen), it will receive all the assistant conversations (messages, history, device states returned by tools, chat images), and its answers will drive the assistant's actions on your home.",
         "sceneDeclarationsTitle": "Scene triggers and actions",
         "sceneDeclarationsText": "This integration adds {{triggers}} trigger(s) and {{actions}} action(s) to the scene editor.",
         "sceneTriggerPrefix": "Trigger:",
@@ -1248,6 +1453,22 @@
         "saveKeyError": "There was an error saving the Open API key.",
         "notAvailableText": "Webhooks are not active yet: save your Open API key to activate them.",
         "urlsText": "Webhook URLs (the integration registers them automatically when possible; some services require pasting them in the vendor console). These URLs contain your key: share them only with the third-party service."
+      },
+      "myCalendars": {
+        "title": "My calendars",
+        "description": "This integration creates calendars and events in Gladys for the users who enable it. Enable it with your own account to see its calendars in your calendar view; disabling it deletes your calendars from Gladys (they stay untouched at the provider).",
+        "enableButton": "Enable for me",
+        "saveButton": "Save",
+        "disableButton": "Disable and delete my calendars",
+        "disableConfirmText": "Your calendars from this integration and their events will be deleted from Gladys. The provider-side calendars are not touched, and re-enabling restores everything at the next sync.",
+        "disableConfirmButton": "Delete my calendars",
+        "cancelButton": "Cancel",
+        "saveError": "There was an error saving your account.",
+        "saveSuccess": "Your account was saved.",
+        "noCalendars": "No calendar yet: the integration will push your calendars after its next synchronization.",
+        "syncLabel": "Synchronize this calendar",
+        "sharedLabel": "Share with the household",
+        "sharedHelp": "A shared calendar is visible to the whole household and can trigger scenes."
       },
       "contactProfile": {
         "title": "My account",
@@ -1553,6 +1774,8 @@
       "status": {
         "notConfigured": "Zigbee2mqtt USB dongle is not configured, please go to ",
         "notEnabled": "Zigbee2mqtt is not activated, please go to ",
+        "notRunning": "Zigbee2mqtt is not responding: Zigbee devices can't be paired or controlled. To find out why, go to ",
+        "mqttNotConnected": "Gladys is not connected to the MQTT broker: Zigbee devices can't be paired or controlled. To find out why, go to ",
         "settingsPageLink": "USB dongle configuration page",
         "setupPageLink": "Zigbee2mqtt configuration page"
       },
@@ -1571,8 +1794,12 @@
             "adapterModeNetworkLabel": "Network coordinator (Ethernet/Wi-Fi)",
             "usbDriverPathLabel": "Select the USB port where the Zigbee dongle is inserted",
             "usbDriverPathPlaceholder": "USB Port",
+            "usbDriverPathShowAll": "Show the other serial ports (GPIO HAT, ports of the machine)",
             "usbDongleNameLabel": "Select the model of the Zigbee dongle used",
             "usbDongleNamePlaceholder": "Zigbee Dongle Model",
+            "usbDongleNameDetected": "Model recognized from the dongle inserted in this port.",
+            "usbDongleNameNotDetected": "No dongle recognized on this port: select its model in the list.",
+            "usbDongleNameMismatch": "The dongle inserted in this port was recognized as {{model}}: check the selected model.",
             "networkAdapterUrlLabel": "Enter the address of the network coordinator",
             "networkAdapterUrlPlaceholder": "tcp://192.168.1.20:6638",
             "networkAdapterUrlDescription": "IP address (or hostname) and TCP port of the coordinator, for example tcp://192.168.1.20:6638. The \"tcp://\" prefix is optional.",
@@ -1599,6 +1826,9 @@
             },
             "containerErrors": {
               "EZSP_PROTOCOL_VERSION": "Warning: Your Ember coordinator firmware is outdated. Firmware version 7.4.x or higher is required. Please follow the <a href=\"https://www.zigbee2mqtt.io/guide/adapters/emberznet.html#firmware-flashing\" target=\"_blank\" rel=\"noopener noreferrer\">firmware flashing guide</a> to update it. Otherwise, select the dongle (legacy ezsp) in the configuration.",
+              "ADAPTER_NO_RESPONSE": "Zigbee2MQTT gets no answer from your Zigbee coordinator. Check that the model selected in the configuration is yours (it sets the driver used) and that no other software (Home Assistant, another Zigbee2MQTT…) uses the coordinator, then unplug and plug your dongle back in, or restart your network coordinator.",
+              "ADAPTER_UNREACHABLE": "Zigbee2MQTT cannot reach your network coordinator. Check that it is powered on and connected to the network, and that its address in the configuration (tcp://address:port) is the right one.",
+              "INVALID_CONFIGURATION": "Zigbee2MQTT refuses to start because its configuration (configuration.yaml file) is not valid. If you edited it by hand, fix it; otherwise, report it on the <a href=\"https://community.gladysassistant.com/\" target=\"_blank\" rel=\"noopener noreferrer\">Gladys forum</a>. Refused settings:",
               "unknownErrorPrefix": "Zigbee2MQTT container error: "
             }
           },
@@ -1634,6 +1864,9 @@
           "unknownErrorPrefix": "MQTT connection error: "
         },
         "serviceStatus": "Service Status",
+        "zigbee2mqttStarting": "Zigbee2mqtt is starting: it will turn green as soon as it answers Gladys.",
+        "zigbee2mqttNotStarting": "Zigbee2mqtt fails to start: see the error above.",
+        "zigbee2mqttNotResponding": "Zigbee2mqtt is not answering Gladys.",
         "description": "This service uses two Docker containers (MQTT broker and Zigbee2mqtt). Enable Zigbee2mqtt to deploy these containers. For more information, visit the Zigbee2mqtt documentation page.",
         "nonDockerEnv": "Gladys is currently not running in Docker, it is impossible to enable Zigbee2mqtt from Gladys.",
         "invalidDockerNetwork": "Gladys is based on a custom installation, to install Zigbee2mqtt from this page, the Gladys Docker container must be started with the \"network=host\" option.",
@@ -1717,6 +1950,7 @@
         "confirmDisableLabel": "Are you sure you want to disable Node-RED?",
         "confirmDisableCancelButton": "Cancel",
         "activationNodeRed": "Activating...",
+        "containerConflictPrefix": "Another container already carries the name of the one Gladys manages, rename or remove it: ",
         "serviceStatus": "Node-RED Service Status",
         "containersStatus": "Containers related to Node-RED",
         "status": "Status",
@@ -1753,6 +1987,7 @@
         "confirmDisableLabel": "Are you sure you want to disable Matterbridge?",
         "confirmDisableCancelButton": "Cancel",
         "activationMatterbridge": "Activating...",
+        "containerConflictPrefix": "Another container already carries the name of the one Gladys manages, rename or remove it: ",
         "serviceStatus": "Matterbridge Service Status",
         "containersStatus": "Containers related to Matterbridge",
         "status": "Status",
@@ -1823,6 +2058,7 @@
         "usagePointName": "Meter",
         "lastRefresh": "Latest data :",
         "usagePointId": "Meter ID",
+        "usagePointDeviceName": "Name",
         "contractType": "Contract type",
         "contracts": {
           "hc-hp": "Off-peak/peak hours",
@@ -2729,9 +2965,6 @@
       "myDevicesTab": "My Devices",
       "energyPriceTab": "Energy Rates",
       "documentation": "Documentation",
-      "hierarchicalListDescription": "Here is the hierarchical list of energy sensors. You can define parent/child relationships to aggregate consumption.",
-      "rootNotParent": "No parent (root)",
-      "level": "Level {{depth}}",
       "wizard": {
         "basics": "Information",
         "periodScope": "Period & Scope",
@@ -2786,7 +3019,6 @@
       },
       "errorLoadingPrices": "Error loading rates.",
       "errorLoadingDevices": "Error loading devices.",
-      "noDeviceFeaturesFound": "No device features found.",
       "settings": "Settings",
       "calculateConsumptionFromIndexDescription": "This will recalculate the energy consumption (in kWh) in 30-minute intervals from the \"index\" features, since the beginning of your Gladys installation.",
       "calculateConsumptionFromIndexFromBeginning": "Recalculate consumption",
@@ -2826,13 +3058,97 @@
       "selectPeakHoursHelp": "Click on the time slots when peak pricing applies. Unselected slots will be off-peak.",
       "peakHours": "Peak hours",
       "offPeakHours": "Off-peak hours",
-      "circularDependencyDetected": "Circular or broken dependencies detected",
-      "circularDependencyDescription": "The following device features have invalid parent references that could cause performance issues. Click the button to fix them automatically.",
-      "brokenReference": "broken reference",
-      "circularReference": "circular reference",
-      "selfReference": "self reference",
-      "fixAutomatically": "Fix",
-      "fixing": "Fixing..."
+      "contracts": {
+        "tab": "Contracts",
+        "description": "A contract describes how the consumption of a meter is priced over a period. Pick a template from the community catalogue or from an installed integration, fill in its parameters and check the preview before saving.",
+        "empty": "No contract yet. Create one to start computing the cost of your consumption.",
+        "errorLoading": "Error loading the contracts.",
+        "confirmDelete": "Are you sure you want to delete this contract? The costs of its period will be removed at the next calculation.",
+        "ongoing": "ongoing",
+        "createTitle": "New contract",
+        "editTitle": "Edit contract",
+        "status": {
+          "active": "active",
+          "scheduled": "scheduled",
+          "expired": "expired",
+          "orphaned": "orphaned"
+        },
+        "mode": {
+          "rules": "rule engine",
+          "delegated": "computed by the integration"
+        },
+        "provider": {
+          "community": "community",
+          "integration": "integration",
+          "internal": "Gladys",
+          "user": "manual"
+        },
+        "providerStopped": "integration stopped",
+        "orphanedHelp": "The integration computing this contract is no longer installed: its costs are not computed anymore. Reinstall it or replace the contract.",
+        "migrationWarning": "This contract was converted from your former energy rates: the new calculation differs by {{gap}}% from the previous one over the last 7 days. Please check its prices.",
+        "wizard": {
+          "meter": "Meter",
+          "template": "Template",
+          "parameters": "Parameters",
+          "preview": "Preview"
+        },
+        "allCountries": "All countries",
+        "searchTemplate": "Search a supplier or a contract…",
+        "noTemplate": "No template matches.",
+        "publishAsIntegration": "Or publish it as an external integration: an integration can declare contract templates, feed tariff calendars (day colours, spot prices, holidays) and even compute the cost itself.",
+        "selectedTemplate": "Template:",
+        "parameters": "Contract parameters",
+        "timezone": "Timezone",
+        "timezonePlaceholder": "System timezone",
+        "billingPeriodStartDay": "Billing period start day",
+        "delegatedHelp": "The cost of this contract is computed by its integration: only the fixed fees of the tariff are computed by Gladys, and there is no preview.",
+        "jsonMode": "Advanced: edit the tariff definition (JSON)",
+        "tariffJson": "Tariff definition",
+        "tariffJsonHelp": "The definition is validated when saving. The format is documented in the repository",
+        "exportTemplate": "Export as template",
+        "previewDescription": "Your real consumption of the last 7 days priced with this contract, without saving anything.",
+        "previewSynthetic": "This meter has no consumption yet: the preview uses a flat profile of 0.5 kWh per 30 minutes.",
+        "previewTotal": "Total over 7 days",
+        "previewWarnings": "Intervals priced by the fallback price (missing calendar value):",
+        "intervals": "intervals",
+        "sampleTime": "Time",
+        "samplePrice": "Unit price",
+        "sampleCost": "Cost",
+        "sampleLabel": "Rate",
+        "calendars": {
+          "title": "Tariff calendars",
+          "description": "The dated values used by the contracts (day colours, spot prices, holidays), published by the integrations. A calendar without a provider keeps its values but is no longer updated.",
+          "empty": "No calendar yet.",
+          "key": "Key",
+          "provider": "Provider",
+          "granularity": "Granularity",
+          "granularities": {
+            "day": "Day",
+            "thirty_minutes": "30 minutes",
+            "fifteen_minutes": "15 minutes"
+          },
+          "coverage": "Coverage",
+          "orphaned": "no provider",
+          "lastValues": "Last values",
+          "noValue": "No value.",
+          "recalculateFrom": "Recalculate the costs from",
+          "recalculate": "Recalculate",
+          "recalculated": "The recalculation has been started. You can follow its progress in the background tasks."
+        }
+      },
+      "hierarchy": {
+        "description": "Each energy device is priced by the contract of the electric meter it is attached to. Gladys maintains the links between the energy features of your devices: you only choose the meter of a device when you have several.",
+        "meterBadge": "Electric meter",
+        "meterSelectLabel": "Meter",
+        "chooseMeter": "Choose a meter",
+        "noAttachedDevice": "No device attached to this meter yet.",
+        "unattachedTitle": "Not attached to a meter",
+        "unattachedDescription": "These devices are not priced: choose the meter they are on.",
+        "noMeter": "No electric meter yet: create an energy contract to price the consumption of your devices.",
+        "noMeterLink": "Create a contract",
+        "noDevice": "No energy device found.",
+        "attachError": "The device could not be attached to this meter."
+      }
     },
     "caldav": {
       "title": "CalDAV",
@@ -3102,6 +3418,7 @@
       "documentation": "AI documentation",
       "description": "Give Gladys the power of artificial intelligence.",
       "firstExplanation": "Gladys can use artificial intelligence (open-weight AI models via Gladys Plus) to help you communicate with your connected home.",
+      "firstExplanationExternalProvider": "Gladys uses artificial intelligence to help you communicate with your connected home. On this instance, the assistant goes through the AI provider integration “{{name}}” selected by an administrator, instead of Gladys Plus: the conversations with the assistant are sent to it.",
       "examplesIntro": "Here's what you can do with AI:",
       "examplesChatTitle": "In the Gladys chat",
       "examplesChatHint": "Available actions: lights and switches by room, cameras, scenes, temperature, humidity and the weather.",
@@ -3133,6 +3450,20 @@
         "downloadButton": "Download JSON context for debug",
         "error": "Unable to generate debug context. Make sure the MCP service is running."
       },
+      "aiProvider": {
+        "activeNotice": "The assistant currently uses the AI provider “{{name}}”: the conversations with the assistant are sent to it.",
+        "title": "AI provider",
+        "description": "Gladys uses Gladys Plus as its AI provider by default. You can route the assistant (chat, intent routing, scene \"Ask AI\" actions, weekly digest) through an installed AI provider integration instead: Claude, DeepSeek, OpenAI, a local model... The provider's own settings (API key, model) are on its integration page.",
+        "selectLabel": "Provider used for AI requests",
+        "gladysPlusOption": "Gladys Plus (default)",
+        "trustWarning": "All the assistant conversations (messages, history, device states returned by tools, chat images) are sent to this provider, and its answers drive the assistant's actions on your home. If the provider is down, AI requests fail: they are never rerouted to Gladys Plus.",
+        "noProvider": "No AI provider integration installed. Install one from the integrations catalog to use another provider than Gladys Plus.",
+        "loadError": "Unable to load the AI provider settings.",
+        "retry": "Retry",
+        "saveError": "Unable to save the AI provider. Please try again.",
+        "providerNotRunning": "This AI provider integration is not running: AI requests will fail until it is started.",
+        "providerNotRunningLink": "Open the integration page"
+      },
       "weeklyDigest": {
         "title": "Weekly home digest",
         "description": "Gladys sends you a weekly summary of your connected home: comfort, energy, maintenance, and useful tips.",
@@ -3152,7 +3483,19 @@
       },
       "rateLimit": "As the AI API is not free, this integration is limited to 3,000 text requests and 500 image requests per month per account.",
       "notOnGladysPlus": "As the AI API is not free, this integration is only available to Gladys Plus users.",
-      "subscribeToGladysPlus": "<a href=\"https://gladysassistant.com/plus/\"  target=\"_blank\" rel=\"noopener noreferrer\">Click here</a> to subscribe to Gladys Plus."
+      "subscribeToGladysPlus": "<a href=\"https://gladysassistant.com/plus/\"  target=\"_blank\" rel=\"noopener noreferrer\">Click here</a> to subscribe to Gladys Plus.",
+      "ttsProvider": "Voice (text-to-speech provider)",
+      "ttsProviderText": "The provider used to speak: scene announcements on your speakers and the voice assistant replies. Gladys Plus works everywhere (including remote access); a TTS provider integration generates the voice locally, served on your local network.",
+      "ttsProviderSelectLabel": "Provider used to speak",
+      "ttsProviderPlusNotConnected": "Gladys Plus is not connected: announcements and voice replies will not play.",
+      "ttsProviderPlusSettingsLink": "Connect Gladys Plus",
+      "ttsProviderPlusNotConnectedOr": "or install a text-to-speech integration and select it here:",
+      "ttsProviderNotRunning": "\"{{name}}\" is not running: announcements and voice replies will fail until it is started again.",
+      "ttsProviderUnavailable": "The selected provider \"{{provider}}\" is no longer available: select another voice.",
+      "ttsProviderUnavailableOption": "{{provider}} (no longer available)",
+      "ttsProviderInstallHint": "Only Gladys Plus is available. A text-to-speech integration from the catalog can generate the voice locally, without a subscription.",
+      "ttsProviderOpenIntegration": "Open the integration",
+      "ttsProviderBrowseCatalog": "Browse the voice assistant integrations"
     },
     "callmebot": {
       "title": "CallMeBot",
@@ -3288,7 +3631,257 @@
     "backToIntegrations": "Back to integrations",
     "menuScrollLeft": "Scroll menu left",
     "menuScrollRight": "Scroll menu right",
-    "deprecationWarning": "This built-in integration will soon be <b>deprecated</b> in favor of an equivalent community external integration. Both versions will co-exist in the catalog during the transition — you can keep using this one for now."
+    "deprecationWarning": "This built-in integration will soon be <b>deprecated</b> in favor of an equivalent community external integration. Both versions will co-exist in the catalog during the transition — you can keep using this one for now.",
+    "thermostat": {
+      "title": "Thermostat",
+      "description": "Create virtual thermostats, or programme the ones you already have",
+      "deviceTab": "My Thermostats",
+      "scheduleTab": "Schedules",
+      "documentationTab": "Documentation",
+      "device": {
+        "title": "My Thermostats",
+        "newButton": "New",
+        "noNameLabel": "No name",
+        "noDevices": "No thermostat created yet. Click \"New\" to get started.",
+        "nameLabel": "Name",
+        "roomLabel": "Room",
+        "activeScheduleLabel": "Active schedule",
+        "noSchedule": "No schedule",
+        "setpointLabel": "Setpoint",
+        "regulationLabel": "Regulation",
+        "heaterRegulates": "By the heater",
+        "noSetpoint": "—",
+        "saveButton": "Save",
+        "editButton": "Edit",
+        "deleteButton": "Delete",
+        "confirmDelete": "Delete this thermostat?",
+        "confirmYes": "Yes",
+        "confirmNo": "No",
+        "saveError": "Error while saving.",
+        "deleteError": "Error while deleting.",
+        "stoppedState": "Stopped"
+      },
+      "edit": {
+        "titleNew": "New Thermostat",
+        "titleEdit": "Edit Thermostat",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. Living Room Thermostat",
+        "roomLabel": "Room",
+        "showAllRoomsLabel": "Show the devices of every room",
+        "showAllRoomsHelp": "The lists below only offer the devices of this room. Widen them when the heated area spans several rooms, such as an open-plan living room and kitchen.",
+        "modeLabel": "Use",
+        "typeLabel": "Thermostat type",
+        "tuningSection": "Fine tuning",
+        "typeVirtual": "Virtual thermostat (Gladys regulates)",
+        "typeExternal": "Real thermostat (the appliance regulates itself)",
+        "typePilotWire": "Pilot-wire heater (the heater regulates itself)",
+        "vendorProgrammeWarning": "Turn the vendor programme off on this device (the Netatmo or Tado app…) before driving it from Gladys. Otherwise the device’s programme and Gladys’s take turns writing the setpoint, and the thermostat follows whichever wrote last.",
+        "typeHelp": {
+          "virtual": "Gladys acts as the thermostat: it reads a temperature sensor and drives a switch (a relay, a plug, a boiler contact) or a pilot-wire heater to reach the setpoint.",
+          "external": "The thermostat handles its own regulation and its own heater. Gladys only writes the setpoint its schedule resolves, and displays the device's state.",
+          "pilotWire": "The heater regulates on its own thermostat. Gladys only sends it the order of each preset (eco, comfort, frost protection…) over the pilot wire."
+        },
+        "targetFeatureLabel": "Setpoint of the real thermostat",
+        "targetFeatureHelp": "The feature Gladys writes the target temperature on. Some devices expose several (heating/cooling, occupied/unoccupied): pick the one that actually drives your heating.",
+        "stateFeatureLabel": "Operating state (optional)",
+        "stateFeatureHelp": "Used to show whether the device is currently running. Accepted either as an operating state or as a boiler contact. Leave empty if your thermostat does not report it.",
+        "modeFeatureLabel": "Operating mode (optional)",
+        "modeFeatureHelp": "The real thermostat's mode (off, heating, cooling, auto), if it exposes one — an air conditioner's mode works too. On a thermostat, Gladys switches it to Off when the thermostat is stopped or an Off slot applies, and hands it back as soon as a setpoint takes over again. An air conditioner's mode has no Off: it is stopped through its Power, which then has to be set.",
+        "powerFeatureLabel": "Power (optional)",
+        "powerFeatureHelp": "The switch that turns the real device on and off, such as the power of an air conditioner or a heat pump. Gladys turns it off when the thermostat is stopped, a window opens or an Off slot applies, and back on as soon as a setpoint takes over again. Needed for an air conditioner, whose mode has no Off.",
+        "powerFeatureNeeded": "An air conditioner's mode has no Off: pick its power here, or Gladys cannot stop it when a window opens, an Off slot applies or the thermostat is stopped.",
+        "mode": {
+          "heating": "Heating",
+          "cooling": "Cooling"
+        },
+        "controlTypeLabel": "Control type",
+        "hysteresisExplain": {
+          "heating": "The thermostat turns the heating on when the temperature drops below the setpoint minus the start threshold, and turns it off when it rises above the setpoint plus the stop threshold. Simple and robust.",
+          "cooling": "The thermostat turns the cooling on when the temperature rises above the setpoint plus the start threshold, and turns it off when it drops below the setpoint minus the stop threshold. Simple and robust."
+        },
+        "tpiExplain": "Computes an ON/OFF ratio over a fixed cycle based on the gap between the current temperature and the setpoint. The larger the gap, the longer the heating stays on within the cycle. Recommended for underfloor heating or high-inertia systems.",
+        "controlType": {
+          "hysteresis": "Hysteresis",
+          "tpi": "TPI (Time Proportional Integral)"
+        },
+        "tempUnitLabel": "Unit",
+        "celsius": "Celsius (°C)",
+        "fahrenheit": "Fahrenheit (°F)",
+        "minTempLabel": "Min temp",
+        "minTempPlaceholder": "e.g. 5",
+        "maxTempLabel": "Max temp",
+        "maxTempPlaceholder": "e.g. 35",
+        "temperatureFeatureLabel": "Temperature sensors",
+        "temperatureFeatureHelp": "Select the sensor that measures the ambient temperature, or several: the thermostat then uses their average. A sensor reporting a different unit than the thermostat is converted automatically; a sensor with no declared unit is assumed to use the thermostat's.",
+        "addTemperatureFeature": "Add a temperature sensor",
+        "humidityFeatureLabel": "Humidity sensor",
+        "humidityFeatureHelp": "Optional. Displayed in the thermostat widget.",
+        "switchFeatureLabel": "Switch (actuator)",
+        "switchFeatureHelp": {
+          "heating": "The switch that will be turned on and off to heat the room.",
+          "cooling": "The switch that will be turned on and off to cool the room."
+        },
+        "noSwitchHint": {
+          "heating": "No switch to pick here. Show the devices of every room above, or, for a thermostat or a heat pump that regulates itself, choose “Real thermostat” as the type.",
+          "cooling": "No switch to pick here. An air conditioner regulates itself: choose “Real thermostat” as the type, then pick its setpoint. A fan or a plug-in cooler on a switch can stay a virtual thermostat."
+        },
+        "pilotWireFeatureLabel": "Pilot wire (actuator)",
+        "pilotWireFeatureHelp": "A French pilot-wire heater: Gladys sends it an order (comfort, eco, frost protection, off…) instead of cutting its supply. Turn the module’s own programme off first.",
+        "pilotWireProgrammeWarning": "Turn the module's own programme or thermostat mode off (Heatzy schedule, Tuya programme…) before driving it from Gladys. Otherwise every order the programme writes is taken as a change made on the module, and the module and Gladys take turns writing the order.",
+        "pilotWireRegulationHelp": {
+          "heater": "Each preset sends the order picked in the presets table (eco → eco, away → frost protection…). The room sensor, if any, is only displayed.",
+          "gladys": "Gladys reads the room on the room sensor and uses the pilot wire as a switch — comfort to heat, frost protection once the preset’s setpoint is reached. Set the comfort setpoint on the heater itself high enough (24 °C for instance): it then obeys Gladys rather than its own thermometer, and that value remains a safety ceiling should Gladys stop. For the heater to regulate on its own, pick the “Pilot-wire heater” type."
+        },
+        "windowFeatureLabel": "Window opening sensors",
+        "windowFeatureHelp": {
+          "heating": "Optional. As soon as one of the selected windows stays open longer than the delay below, the heating is automatically cut off.",
+          "cooling": "Optional. As soon as one of the selected windows stays open longer than the delay below, the cooling is automatically cut off."
+        },
+        "windowDelayLabel": "Delay before cutting off",
+        "windowDelayUnit": "s",
+        "windowDelayHelp": {
+          "heating": "How long the window has to stay open before the heating is cut off. A door opened to come in and closed right behind does not cut it. 0 cuts it at once; at most 3600 s (one hour).",
+          "cooling": "How long the window has to stay open before the cooling is cut off. A door opened to come in and closed right behind does not cut it. 0 cuts it at once; at most 3600 s (one hour)."
+        },
+        "addWindowFeature": "Add an opening sensor",
+        "removeFeature": "Remove",
+        "hysteresisStartLabel": "Start threshold",
+        "hysteresisStartHelp": {
+          "heating": "The heating turns on when the temperature is below (setpoint − start threshold). E.g. setpoint 21°C, threshold 0.5°C → turns on below 20.5°C.",
+          "cooling": "The cooling turns on when the temperature is above (setpoint + start threshold). E.g. setpoint 24°C, threshold 0.5°C → turns on above 24.5°C."
+        },
+        "hysteresisStopLabel": "Stop threshold",
+        "hysteresisStopHelp": {
+          "heating": "The heating turns off when the temperature rises above (setpoint + stop threshold). E.g. setpoint 21°C, threshold 0.5°C → turns off above 21.5°C.",
+          "cooling": "The cooling turns off when the temperature drops below (setpoint − stop threshold). E.g. setpoint 24°C, threshold 0.5°C → turns off below 23.5°C."
+        },
+        "tpiCycleTimeLabel": "TPI cycle time",
+        "tpiCycleTimeHelp": "Total duration of an ON/OFF cycle in minutes. E.g. 30 min → if the demand is 50%, the heating is ON for 15 min then OFF for 15 min.",
+        "tpiProportionalBandLabel": "TPI proportional band",
+        "tpiProportionalBandHelp": "Temperature gap (in °C) corresponding to 100% heating. E.g. band = 2°C, current gap = 1°C → 50% of the cycle ON.",
+        "presetsLabel": "Temperature presets",
+        "presetColNameLabel": "Preset",
+        "presetColTempLabel": "Setpoint",
+        "presetColOrderLabel": "Order sent",
+        "preset": {
+          "off": "Off",
+          "frost": "Frost protection",
+          "away": "Away",
+          "eco": "Eco",
+          "night": "Night",
+          "comfort": "Comfort"
+        },
+        "saveButton": "Save",
+        "cancelButton": "Cancel",
+        "saveError": "Error while saving.",
+        "incompleteVirtualError": "A virtual thermostat needs a temperature sensor and an actuator (a switch or a pilot wire): reading one and actuating the other is how it regulates.",
+        "incompleteExternalError": "An existing thermostat needs the setpoint of the thermostat it drives.",
+        "incompletePilotWireError": "A pilot-wire heater needs the pilot wire to drive.",
+        "activeScheduleLabel": "Active schedule",
+        "activeScheduleHelp": "Select the schedule to automatically apply to this thermostat.",
+        "noActiveSchedule": "No schedule (manual control)",
+        "manualExpiryLabel": "End of manual mode",
+        "manualExpiryFixed": "After a fixed duration",
+        "manualExpiryNextTransition": "At the next schedule slot",
+        "manualExpiryHelp": "\"At the next slot\" hands the thermostat back to its schedule at the next slot change, the way Tado and Netatmo do. With no schedule, manual mode stays on until you cancel it.",
+        "manualDurationLabel": "Manual mode duration",
+        "manualDurationUnit": "min",
+        "manualDurationHelp": "Duration in minutes before automatically returning to the schedule after a manual action.",
+        "modeHelp": "What this thermostat drives: heating or cooling.",
+        "sectionDevice": "Device",
+        "section": {
+          "heating": "Heating",
+          "cooling": "Cooling"
+        },
+        "sectionProgramming": "Programming",
+        "deviceRangeHint": "The device advertises {{min}} – {{max}} °{{unit}}.",
+        "deviceRangeApply": "Use these values",
+        "rangeSection": "Temperature range"
+      },
+      "schedule": {
+        "title": "Schedules",
+        "newButton": "New schedule",
+        "noSchedules": "No schedule created yet. Click \"New schedule\" to get started.",
+        "nameLabel": "Schedule name",
+        "namePlaceholder": "e.g. Work week",
+        "saveButton": "Save",
+        "cancelButton": "Cancel",
+        "deleteButton": "Delete",
+        "editButton": "Edit",
+        "confirmDelete": "Delete this schedule? The thermostats following it stay on its current slot, and are stopped if that slot is Off.",
+        "confirmYes": "Yes",
+        "confirmNo": "No",
+        "saveError": "Error while saving.",
+        "duplicateNameError": "A schedule of this house already carries that name. Two houses may each have their own \"Week\", though.",
+        "gapWarning": "Some days are not fully covered. The thermostat will stay on its current preset during these ranges:",
+        "nextDay": "+1d",
+        "fullDayHint": "00:00 → 00:00 covers the whole day.",
+        "duplicateButton": "Duplicate",
+        "duplicateSuffix": "(copy)",
+        "deleteError": "Error while deleting.",
+        "days": {
+          "0": "Monday",
+          "1": "Tuesday",
+          "2": "Wednesday",
+          "3": "Thursday",
+          "4": "Friday",
+          "5": "Saturday",
+          "6": "Sunday"
+        },
+        "daysShort": {
+          "0": "Mon",
+          "1": "Tue",
+          "2": "Wed",
+          "3": "Thu",
+          "4": "Fri",
+          "5": "Sat",
+          "6": "Sun"
+        },
+        "addSlot": "Add time slot",
+        "copyTo": "Copy to...",
+        "copyToLabel": "Copy to:",
+        "applyButton": "Apply",
+        "removeSlot": "Remove",
+        "startTime": "Start",
+        "endTime": "End",
+        "preset": "Preset",
+        "presets": {
+          "off": "Off",
+          "frost": "Frost protection",
+          "away": "Away",
+          "eco": "Eco",
+          "night": "Night",
+          "comfort": "Comfort"
+        },
+        "noSlots": "No time slots yet. Click \"Add time slot\" to get started.",
+        "followedBy": "Followed by",
+        "weekLabel": "Week at a glance",
+        "emptyScheduleWarning": "This schedule has no slot, so it drives nothing. The thermostats following it keep their current setpoint, or stay stopped if it was on Off when it was emptied.",
+        "emptySaveWarning": "This schedule has no slot: it will drive nothing. The thermostats following it will keep their current setpoint, or be stopped if it is on Off right now; those it stops start again once it has slots again.",
+        "saveEmptyButton": "Save anyway",
+        "backToEditingButton": "Add a slot",
+        "followersLabel": "Thermostats following this schedule",
+        "followersHelp": "A thermostat follows one schedule: adding it here takes it off its own. Only the thermostats of this house are offered.",
+        "followedByNobody": "no thermostat yet",
+        "attachPlaceholder": "Add a thermostat…",
+        "attachReplacesHelp": "A thermostat follows one schedule: adding it here takes it off the one it followed.",
+        "detachButton": "Stop following this schedule",
+        "attachError": "Could not change the thermostats following this schedule.",
+        "houseLabel": "House",
+        "carriedSince": "since",
+        "houseLockedByDevices": "A schedule only moves house while no thermostat follows it. Followed by:",
+        "searchPlaceHolder": "Search for a schedule",
+        "noSearchResult": "No schedule matches this search.",
+        "editorTitleEdit": "Edit the schedule",
+        "editorTitleNew": "New schedule",
+        "sameTimeError": "The end time must differ from the start time: a range ending where it starts would cover a full 24 hours. For the whole day, tick “All day”.",
+        "allDay": "All day",
+        "startLabel": "Start",
+        "endLabel": "End",
+        "confirmSlotButton": "Add",
+        "confirmEditButton": "Apply"
+      }
+    }
   },
   "editScene": {
     "settings": "Settings",
@@ -3319,6 +3912,14 @@
     "addNewTriggerButton": "Add trigger",
     "saveSceneError": "There was an error saving your scene. Please check that all actions/triggers are filled and correct.",
     "actionsCard": {
+      "formulaHelp": {
+        "toggle": "Available functions and syntax",
+        "operators": "Available operators:",
+        "functions": "Available functions:",
+        "constants": "Available constants:",
+        "example": "A function takes its arguments between parentheses, separated by commas. Ex: round(min(100, 3 * 45) / 2)",
+        "caveats": "Watch out: trigonometric functions work in radians (sin(pi/2), not sin(90)), log is the natural logarithm (use log10 for base 10), randomInt(min, max) never returns max, and constants must be multiplied explicitly (2*pi, not 2 pi)."
+      },
       "delay": {
         "label": " This block will wait the specified duration.",
         "inputPlaceholder": "Duration",
@@ -3352,6 +3953,7 @@
       },
       "askAi": {
         "description": "This action will send a message to the AI via Gladys Plus and will reply to you with a message. If you attach a camera image, the AI will be able to see what is on the image and even take action accordingly.",
+        "descriptionExternalProvider": "This action will send a message to the AI provider “{{name}}” selected in the AI settings and will reply to you with a message. If you attach a camera image, the AI will be able to see what is on the image and even take action accordingly.",
         "userLabel": "Gladys will respond to",
         "cameraLabel": "Attach a camera image (optional)",
         "textLabel": "My question for the AI",
@@ -3582,6 +4184,11 @@
         "houseLabel": "House",
         "alarmModeLabel": "Alarm Mode"
       },
+      "thermostatSetSchedule": {
+        "description": "This action makes the selected thermostats follow another schedule, for instance to switch from the usual schedule to the school holidays one. The thermostat follows the schedule right away: a manual setpoint in progress is cancelled, but a thermostat stopped by hand stays stopped.",
+        "scheduleLabel": "Schedule",
+        "thermostatsLabel": "Thermostats"
+      },
       "alarmSetMode": {
         "description": "This action will set the selected house to the selected alarm mode.",
         "houseLabel": "House",
@@ -3602,8 +4209,22 @@
         "variablesExplanation": "To inject a variable in the text, press '{{'. To set a variable value, you need to use a 'Set a variable' or 'Get device value' box before this one.",
         "messagePlaceholder": "My message"
       },
+      "playMedia": {
+        "description": "This action will start the selected media on the selected player.",
+        "deviceLabel": "Player",
+        "mediaLabel": "Media to play",
+        "selectedMedia": "Selected",
+        "changeMedia": "Change",
+        "noMedia": "No media selected yet: browse or search the catalog of the player below.",
+        "unsupported": "This player exposes no catalog: pick another player.",
+        "modeLabel": "Mode",
+        "modeReplace": "Play now (replaces the current playback)",
+        "modeNext": "Play next",
+        "modeAppend": "Add to the end of the queue"
+      },
       "playNotification": {
         "description": "This action will make Gladys speak on the selected speaker.",
+        "voiceSettingLink": "Choose the voice of your instance (Artificial Intelligence integration)",
         "deviceLabel": "Speaker",
         "volumeLabel": "Volume",
         "valueTypeSimple": "Simple",
@@ -3611,6 +4232,30 @@
         "computedExplanationText": "Instead of a fixed volume, you can enter here a calculation based on a scene variable, for example to speak quieter at night. To inject a variable, type '{{'. To set a variable value, you need to use a 'Set a variable' or 'Get device value' box before this one.",
         "textLabel": "Message to speak on the speaker",
         "variablesExplanation": "To inject a variable, type '{{'. To set a variable value, you need to use a 'Set a variable' or 'Get device value' box before this one."
+      },
+      "energyCurrentPrice": {
+        "description": "The scene will continue only if the current price per kWh of the selected contract meets the condition below.",
+        "contractLabel": "Energy contract",
+        "operatorLabel": "Continue if the price is",
+        "valueLabel": "Threshold (per kWh)",
+        "valuePlaceholder": "0.20",
+        "error": "Unable to load the energy contracts.",
+        "noContract": "No energy contract yet: create one in the Energy Monitoring integration.",
+        "operators": {
+          "equal": "equal to",
+          "different": "different from",
+          "superior": "greater than",
+          "superiorOrEqual": "greater than or equal to",
+          "inferior": "lower than",
+          "inferiorOrEqual": "lower than or equal to"
+        }
+      },
+      "inTimeRange": {
+        "label": "Only continue if",
+        "inRange": "We are inside a time range",
+        "outOfRange": "We are outside the time ranges",
+        "description": "This condition uses the time ranges of the scene's “Time ranges” trigger. Put it in an “If… Then… Else” block to turn a device on at the start of a range and off at its end, with a single scene.",
+        "noTrigger": "This scene has no \"time ranges\" scheduled trigger: this condition will stop it every time."
       }
     },
     "actions": {
@@ -3653,7 +4298,8 @@
         "only-continue-if": "Condition on variables",
         "check-time": "Time condition",
         "if-then-else": "Condition: If...then...else...",
-        "while": "Loop: As long as... repeat..."
+        "while": "Loop: As long as... repeat...",
+        "in-time-range": "Time planning"
       },
       "user": {
         "set-seen-at-home": "User seen at home",
@@ -3677,6 +4323,9 @@
         "check-alarm-mode": "If the alarm is in mode",
         "set-alarm-mode": "Set alarm mode to"
       },
+      "thermostat": {
+        "set-schedule": "Change the thermostats' schedule"
+      },
       "mqtt": {
         "send": "Send MQTT Message"
       },
@@ -3684,7 +4333,8 @@
         "send": "Send Zigbee2mqtt Message"
       },
       "music": {
-        "play-notification": "Talk on a speaker"
+        "play-notification": "Talk on a speaker",
+        "play-media": "Play music on a speaker"
       },
       "ai": {
         "ask": "Ask AI"
@@ -3697,6 +4347,9 @@
       },
       "external-integration": {
         "scene-action": "Integration action"
+      },
+      "energy-contract": {
+        "current-price": "Condition on electricity price"
       }
     },
     "actionsDescriptions": {
@@ -3724,13 +4377,15 @@
         "send": "Send a text message to a phone"
       },
       "music": {
-        "play-notification": "Read a text out loud on a speaker"
+        "play-notification": "Read a text out loud on a speaker",
+        "play-media": "Start a track, an album, a playlist or a radio on a speaker"
       },
       "condition": {
         "if-then-else": "Follow a different path depending on a condition",
         "only-continue-if": "Stop the scene here if the condition is not met",
         "while": "Repeat actions as long as a condition is true",
-        "check-time": "Only continue at certain times or on certain days"
+        "check-time": "Only continue at certain times or on certain days",
+        "in-time-range": "Only continue if we are inside one of the trigger's time ranges"
       },
       "user": {
         "check-presence": "Mark a user as away if they haven't been seen recently",
@@ -3762,6 +4417,9 @@
       "http": {
         "request": "Call an external API or service"
       },
+      "thermostat": {
+        "set-schedule": "Make thermostats follow another weekly schedule"
+      },
       "mqtt": {
         "send": "Publish a message on the MQTT broker"
       },
@@ -3779,6 +4437,9 @@
       },
       "external-integration": {
         "scene-action": "An action declared by an external integration"
+      },
+      "energy-contract": {
+        "current-price": "Continue only if the current price of an energy contract meets a threshold"
       }
     },
     "actionCategories": {
@@ -3868,6 +4529,9 @@
       },
       "external-integration": {
         "scene-event": "Integration trigger"
+      },
+      "energy-contract": {
+        "price-changed": "Electricity price changed"
       }
     },
     "triggersDescriptions": {
@@ -3914,6 +4578,9 @@
       },
       "external-integration": {
         "scene-event": "A trigger declared by an external integration"
+      },
+      "energy-contract": {
+        "price-changed": "When the current price or tier of an energy contract changes"
       }
     },
     "triggerCategories": {
@@ -3923,7 +4590,8 @@
       "alarm": "Alarm",
       "weather": "Weather",
       "advanced": "Advanced",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "energy": "Energy"
     },
     "triggersCard": {
       "newState": {
@@ -3975,7 +4643,32 @@
           "saturday": "Saturday",
           "sunday": "Sunday"
         },
-        "house": "House"
+        "house": "House",
+        "timeRange": "Time ranges",
+        "timeRangesLabel": "Time ranges",
+        "noTimeRange": "No time range yet. Add one to define the planning.",
+        "addRange": "Add a range",
+        "deleteRange": "Delete range",
+        "rangeStart": "Start",
+        "rangeEnd": "End",
+        "rangeDuration": "Duration",
+        "rangeDays": "Days",
+        "overnight": "+1d",
+        "emptyRange": "Invalid range",
+        "resumeOnStartup": "Re-evaluate when Gladys starts",
+        "timeRangesHelp": "The scene runs at the start and at the end of each range. Use the “Time planning” action in an “If… Then… Else” block to turn a device on at the start of a range and off at its end. If “Re-evaluate when Gladys starts” is checked, the scene also runs at startup with the real state of the planning, so your devices go back to the right state after an outage.",
+        "daysOfTheWeekShort": {
+          "monday": "MO",
+          "tuesday": "TU",
+          "wednesday": "WE",
+          "thursday": "TH",
+          "friday": "FR",
+          "saturday": "SA",
+          "sunday": "SU"
+        },
+        "lastDayLocked": "At least one day must stay selected.",
+        "invalidRangesError": "Complete or remove the time ranges of the scene: each one needs a start and an end, and they cannot be the same time.",
+        "noRangeError": "Add at least one time range to the \"Time ranges\" trigger, or remove the trigger."
       },
       "warning": {
         "houseWithoutCoordinate": "Your house has no coordinates. This trigger cannot work without this data. Please go to Settings / Houses and click on the map to set the house coordinates."
@@ -4057,6 +4750,12 @@
           "severe": "Severe (orange)",
           "extreme": "Extreme (red)"
         }
+      },
+      "energyPriceChanged": {
+        "description": "This will trigger when the current price per kWh (or the tariff tier) of the selected contract changes, for example when switching from off-peak to peak hours.",
+        "contractLabel": "Energy contract",
+        "anyContract": "Any contract",
+        "error": "Unable to load the energy contracts."
       }
     },
     "searchActionsPlaceholder": "Search for an action…",
@@ -4106,6 +4805,7 @@
     "userRole": "User",
     "adminRole": "Administrator",
     "roleDescription": "An admin has all rights in the Gladys instance. A user can just edit his dashboard, talk to Gladys, see his calendars & map. He cannot create scenes, edit preferences or modify an integration configuration.",
+    "ownRoleLocked": "You cannot change your own role. Another administrator can do it for you.",
     "invitationPending": "Pending",
     "invitationSuccess": "Accepted",
     "firstnameLabel": "First Name",
@@ -4164,7 +4864,6 @@
     "backupTab": "Backups",
     "serviceTab": "Services",
     "billingTab": "Billing",
-    "gatewayUsersTab": "Plus Users",
     "gatewayOpenApiTab": "Open API",
     "jobsTab": "Tasks",
     "scrollLeft": "Scroll menu left",
@@ -4210,6 +4909,117 @@
   },
   "usersSettings": {
     "title": "Users",
+    "subtitle": "The people who can sign in to this Gladys.",
+    "subtitlePlus": "The people who can sign in to this Gladys, and their remote access through Gladys Plus.",
+    "userCount": "{{count}} users",
+    "oneUserCount": "1 user",
+    "you": "you",
+    "roles": {
+      "admin": "Administrator",
+      "user": "User"
+    },
+    "deleteUserError": "Unable to delete this user.",
+    "plus": {
+      "title": "Remote access with Gladys Plus",
+      "description": "To control Gladys from outside your home, a person needs a Gladys Plus account linked to their Gladys user, and you must authorize their encryption keys here, at home. Everything happens on this page: invite, follow, authorize.",
+      "whyTitle": "Why do I have to authorize keys?",
+      "whyText": "Each Gladys Plus user has their own encryption keys. By authorizing a user, you validate locally, on your instance, that their keys are accepted: this local validation is what protects your home against man-in-the-middle attacks. <b>Nobody, not even the Gladys Plus servers, can grant access to your instance without this validation done at your home.</b>",
+      "whyKeysChangedText": "A user's keys change when they reset their Gladys Plus password: their access is then automatically revoked for security and they show up as \"Keys changed\". Check with them that the new fingerprints match the ones displayed on their Gladys Plus page, then authorize them again.",
+      "statAuthorized": "Authorized",
+      "statActionNeeded": "To authorize",
+      "statInvited": "Invited",
+      "actionNeededOne": "1 person is waiting for your authorization: check their key fingerprints below, then turn on their switch.",
+      "actionNeededMany": "{{count}} people are waiting for your authorization: check their key fingerprints below, then turn on their switches.",
+      "notConnected": "Your Gladys instance is not connected to Gladys Plus right now: remote access cannot be displayed. Check your internet connection and reload this page.",
+      "loadError": "Unable to load the users of your Gladys Plus account. Check your internet connection and reload this page.",
+      "sectionLabel": "Remote access · Gladys Plus",
+      "status": {
+        "authorized": "Authorized",
+        "pending": "Waiting for your authorization",
+        "keys_changed": "Keys changed",
+        "linked": "Linked",
+        "not_linked": "Not linked yet",
+        "invited": "Invitation sent",
+        "none": "No remote access"
+      },
+      "statusText": {
+        "authorized": "Can control this Gladys from anywhere, through Gladys Plus.",
+        "pending": "Their Gladys Plus account is ready. Check that the key fingerprints below match the ones displayed on their Gladys Plus page, then turn on the switch to authorize them.",
+        "keys_changed": "Their encryption keys changed since you authorized them, so their access was revoked for security. Check the new fingerprints below, then authorize them again.",
+        "linked": "Linked to this Gladys user. Their encryption keys will show up here once their Gladys Plus account has connected to this Gladys; an administrator of this Gladys then authorizes them.",
+        "not_linked": "They have a Gladys Plus account that is not attached to a Gladys user yet: link it here, or let them pick their user on their next Gladys Plus login.",
+        "invited": "Invitation sent on {{date}}. Once they have created their Gladys Plus account, it is linked to this user and you will authorize their keys here.",
+        "none": "No Gladys Plus account: this user can only use Gladys from home."
+      },
+      "statusUnavailable": "Remote access cannot be checked while your instance is not connected to Gladys Plus.",
+      "memberSince": "On Gladys Plus since {{date}}",
+      "online": "Connected right now",
+      "plusRole": {
+        "admin": "Gladys Plus administrator",
+        "user": "Gladys Plus user"
+      },
+      "unknownName": "Gladys Plus user",
+      "authorizeSwitchLabel": "Authorized",
+      "fingerprintsSummary": "Encryption key fingerprints",
+      "fingerprintsHint": "Compare them with the ones displayed on the user's Gladys Plus page (Settings → Gladys Plus) before authorizing.",
+      "rsaKey": "RSA",
+      "ecdsaKey": "ECDSA",
+      "keysChangedNote": "This happens after a <b>Gladys Plus password reset</b>: new keys are generated and your instance refuses them until you validate them yourself.",
+      "inviteThisUser": "Invite to Gladys Plus",
+      "inviteFromPlus": "Invite from Gladys Plus",
+      "revokeButton": "Remove from Gladys Plus",
+      "cancelInvitationButton": "Cancel invitation",
+      "confirmRevokeText": "They will lose their remote access and be removed from your Gladys Plus account. Their Gladys user and its data stay.",
+      "confirmCancelInvitationText": "The invitation link they received will stop working.",
+      "confirmRevokeButton": "Confirm",
+      "cancel": "Cancel",
+      "revokeError": "Unable to remove this person from Gladys Plus.",
+      "switchError": "Unable to save the authorization: it went back to its previous state.",
+      "unlinkedTitle": "Gladys Plus accounts not linked to a user",
+      "unlinkedHint": "These people are in your Gladys Plus account but are not attached to a Gladys user yet: their invitation is pending, or they have not chosen their Gladys user on Gladys Plus.",
+      "invite": {
+        "description": "{{name}} will receive an email to create their Gladys Plus account. That account will be linked to this Gladys user automatically: they will not have to pick one, and nobody can pick someone else's.",
+        "emailLabel": "Email",
+        "emailPlaceholder": "name@example.com",
+        "invalidEmail": "This email address is not valid.",
+        "roleLabel": "Role on Gladys Plus",
+        "roleHelp": "A Gladys Plus administrator can invite and remove people and manage the subscription. The role on Gladys Plus is independent from the role on this Gladys.",
+        "button": "Send invitation",
+        "error": "Unable to send the invitation. Check the email address and try again."
+      },
+      "link": {
+        "selectLabel": "Link to a Gladys user",
+        "selectPlaceholder": "Choose a Gladys user…",
+        "button": "Link",
+        "toThisUser": "Link to {{name}}",
+        "help": "The Gladys Plus account is attached to that user: their remote access then shows on the user's card, and they control Gladys as that user.",
+        "error": "Unable to link this Gladys Plus account. Check that the Gladys user is not already linked to another account."
+      },
+      "recoveryCodes": {
+        "button": "Recovery codes",
+        "confirmText": "{{name}} lost their two-factor app and their recovery codes? Your Gladys, physically at home, stands in for their app: a new set of single-use recovery codes will be generated for their Gladys Plus account and displayed once, here. Their previous codes stop working at once, and Gladys Plus will try to let them know by email: tell them yourself too. Their password is still required to sign in. To confirm, enter your own Gladys password.",
+        "passwordLabel": "Your Gladys password",
+        "passwordPlaceholder": "Enter your Gladys password",
+        "confirmButton": "Generate",
+        "doneButton": "I saved the recovery codes",
+        "errorWrongPassword": "Wrong password.",
+        "errorTwoFactorNotEnabled": "This person has not enabled two-factor authentication on Gladys Plus: they do not need recovery codes.",
+        "errorUserNotFound": "This person is no longer part of your Gladys Plus account. Reload the page and try again.",
+        "errorNetwork": "Your Gladys is not connected to Gladys Plus: check its internet connection and try again.",
+        "error": "Unable to generate the recovery codes. Please try again."
+      },
+      "twoFactor": {
+        "button": "Reset two-factor authentication",
+        "confirmText": "{{name}} will no longer be asked for their authenticator app nor their recovery codes: they will sign in with their password and set up a new authenticator right away. Their encryption keys and their access to this Gladys do not change. They will be told by email. To confirm, enter the code from your own authenticator app.",
+        "codeLabel": "Your two-factor code",
+        "codePlaceholder": "123456",
+        "confirmButton": "Reset",
+        "success": "Two-factor authentication reset. They can sign in with their password and set up a new authenticator app.",
+        "errorWrongCode": "Wrong code. Enter the current code from your own authenticator app.",
+        "errorTooManyAttempts": "Too many wrong codes: wait a few minutes before trying again.",
+        "error": "Unable to reset the two-factor authentication of this user."
+      }
+    },
     "searchPlaceholder": "Search users",
     "noUsersFound": "No users found with this search.",
     "newUserButton": "New",
@@ -4349,6 +5159,7 @@
       },
       "statesMigrated": "History states moved: {{count}}",
       "orphanedStates": "Orphaned states: {{count}}",
+      "fallbackPrices": "Prices taken from the fallback price (missing calendar value): {{count}}",
       "duration": "Duration: {{duration}}"
     },
     "jobTypes": {
@@ -4372,6 +5183,9 @@
       "energy-monitoring-consumption-from-index-beginning": "Energy consumption calculation from index (from beginning)",
       "energy-monitoring-production-from-index-thirty-minutes": "Energy production calculation from index (30 minutes)",
       "energy-monitoring-production-from-index-beginning": "Energy production calculation from index (from beginning)",
+      "energy-monitoring-cost-calculation-contract": "Energy cost recalculation (contract or calendar change)",
+      "energy-monitoring-billing-period-end": "Energy cost calculation (end of billing period)",
+      "energy-monitoring-delegated-catch-up": "Energy cost catch-up (contracts priced by an integration)",
       "service-enedis-sync": "Enedis data synchronization",
       "ai-weekly-digest": "AI weekly digest"
     },
@@ -4406,6 +5220,9 @@
     "pinnedImageRecommendation": "For updates to work, re-create your container with the image \"{{recommendedImage}}\", which follows new releases. Your data is not stored inside the container, so nothing will be lost.",
     "upgradeError": {
       "IMAGE_TAG_PINNED": "Update cancelled: your container uses the fixed image \"{{image}}\". Re-create it with \"{{recommendedImage}}\" to be able to update it.",
+      "IMAGE_PULL_FAILED": "Update impossible: Gladys could not download the image \"{{image}}\". Docker error: {{message}}. Check the internet connection and the free disk space of the machine running Gladys, then try again.",
+      "IMAGE_PULL_TIMEOUT": "Update impossible: the download of the image \"{{image}}\" did not finish within 15 minutes and was stopped, so nothing was changed. Check the internet connection of the machine running Gladys, then try again.",
+      "NOT_ENOUGH_DISK_SPACE": "Update impossible: the machine running Gladys ran out of disk space while downloading the image \"{{image}}\". Free up some space, for example by removing the Docker images you no longer use (`docker image prune -a` removes every image no container is using), then try again.",
       "NO_UPDATE_APPLIED": "No update was applied: Watchtower did not find any new image for \"{{image}}\". Try again in a few minutes, the new image may not be published yet for your architecture.",
       "WATCHTOWER_FAILED": "The update failed: the Watchtower container exited with error code {{statusCode}}. Check the Gladys logs for more details.",
       "WATCHTOWER_TIMEOUT": "The update is taking longer than expected and Gladys stopped following it. It may still be running: refresh this page in a few minutes to check the installed version.",
@@ -4468,6 +5285,8 @@
     },
     "batteryLevel": "Battery level alert",
     "batteryLevelDescription": "Every Saturday at 9:00 am, a message will be sent to all administrators if a device's battery level falls below the chosen threshold.",
+    "systemMessageService": "System messages channel",
+    "systemMessageServiceDescription": "Choose where Gladys sends its system messages to administrators (Gladys upgrade, backup failure, low batteries, Gladys Plus subscription, weekly AI digest). They always remain visible in the Gladys conversation.",
     "duckDbMigrationTitle": "Migration to DuckDB",
     "duckDbMigrationDescription": "We are migrating to a new database system for sensor data. Gladys will automatically migrate your data, but will not delete your data from your SQLite database to prevent data loss.",
     "duckDbMigrationProgressTitle": "Migration Progress",
@@ -4565,14 +5384,13 @@
     "backupKeyPlaceholder": "Enter/Restore a backup key",
     "toggleBackupKeyVisibility": "Show or hide the backup key",
     "saveBackupKeyButton": "Save",
-    "usersListTitle": "Remote users",
-    "userColumn": "User",
-    "statusColumn": "Status",
-    "userRsaKey": "RSA key:",
-    "userEcdsaKey": "ECDSA key:",
-    "usersListDescription": "This list is synchronized with your Gladys Plus users. For a user (including yourself) to access your instance remotely, you need to authorize them here by turning on the switch next to their name.",
-    "usersListWhyAcceptDescription": "<b>Why this step?</b> Each Gladys Plus user has their own encryption keys, whose fingerprints are displayed below. By authorizing a user, you validate locally, on your instance, that their keys are accepted: this local validation is what protects your home against man-in-the-middle attacks. Nobody, not even the Gladys Plus servers, can grant access to your instance without this validation done at your home.",
-    "usersListRevokedDescription": "If a user's keys change (for example when their two-factor authentication was reset), their access is automatically revoked for security: you will need to authorize them again here. To remove a user, go to the Gladys Plus user management page.",
+    "remoteUsersTitle": "Remote users",
+    "remoteUsersDescription": "The people who can control this Gladys through Gladys Plus are managed with your Gladys users: invitations, Gladys Plus accounts and the authorization of their encryption keys, all on the Users page.",
+    "remoteUsersAuthorizedOne": "1 user authorized",
+    "remoteUsersAuthorized": "{{count}} users authorized",
+    "remoteUsersPendingOne": "1 waiting for authorization",
+    "remoteUsersPending": "{{count}} waiting for authorization",
+    "remoteUsersManageButton": "Manage users",
     "disconnectTitle": "Disconnect your Plus account",
     "disconnectButton": "Disconnect",
     "gatewayConnectedSuccessTitle": "Gladys Plus connected with success!",
@@ -4606,6 +5424,14 @@
     "heroReassurance": "1-month free trial · No credit card · No commitment",
     "startFreeTrialButton": "Start my free trial",
     "alreadySubscriberButton": "I already have an account",
+    "newBadge": "New",
+    "offlineAlert": {
+      "title": "Get an email when your Gladys goes down",
+      "description": "Power cut, internet box down, dead SD card, a Docker update gone wrong: when your instance stays unreachable, Gladys Plus emails you. You find out the same day, not in the evening when you get home.",
+      "delay": "You pick the delay, from 10 minutes to 24 hours",
+      "backOnline": "A second email once your Gladys is back online",
+      "onByDefault": "On by default, included in both plans: nothing to set up"
+    },
     "featuresTitle": "Everything that's included",
     "featuresSubtitle": "A complete suite to make your smart home truly useful, every day.",
     "features": {
@@ -4652,6 +5478,7 @@
       "priceDetail": "Billed €69.99 per year (save 17%)",
       "features": {
         "remoteAccess": "End-to-end encrypted remote access",
+        "offlineAlert": "Email alert when your Gladys goes offline",
         "voiceAssistants": "Google Home & Amazon Alexa",
         "openApi": "Open REST API",
         "familyAccounts": "Accounts for the whole family"
@@ -4761,6 +5588,8 @@
     },
     "tts": {
       "title": "This action requires Gladys Plus",
+      "providerTitle": "This action needs a voice",
+      "providerCompactDescription": "Gladys Plus gives Gladys a natural voice that works everywhere, including remote access. Without a subscription, you can also install a text-to-speech integration and select it as the voice of your instance.",
       "description": "The \"Play on a speaker\" action uses Text-to-Speech APIs via Gladys Plus to make Gladys talk on your speakers (Sonos, Google Cast, etc.) with a natural voice.",
       "compactDescription": "This action uses the Text-to-Speech APIs via Gladys Plus.",
       "feature1": "Natural, multilingual voices",
@@ -4779,7 +5608,6 @@
     "wrongCredentials": "Wrong email/password.",
     "invalidEmail": "Invalid email",
     "networkError": "Network Error: Are you sure your Gladys instance is connected to the internet?",
-    "userNotAcceptedLocally": "Your user is not accepted locally, please go back to your Gladys instance and allow access to this user in settings.",
     "gatewayNoInstanceFound": "No Instance found. You need to first connect your instance to Gladys.",
     "gatewayAccessBilling": "To access billing, click here.",
     "unknownError": "An unknown error occurred. Please contact us for more information.",
@@ -4790,7 +5618,14 @@
     "invalidRecoveryCode": "This recovery code is invalid or has already been used.",
     "lostTwoFactor": "Lost access to your two-factor app?",
     "useRecoveryCodeLink": "Use a recovery code",
-    "noRecoveryCode": "No recovery code? Contact us at <a href=\"mailto:hello@gladysassistant.com\">hello@gladysassistant.com</a> and we will reset it.",
+    "noRecoveryCode": "No recovery code left? An admin of your Gladys can generate new ones from Settings › Users.",
+    "resetTwoFactorLink": "No Gladys connected? Reset your two-factor authentication by email.",
+    "resetTwoFactorEmailSent": "We sent you an email with a link to reset your two-factor authentication. It works once and expires in one hour.",
+    "resetTwoFactorInstanceConnected": "Your Gladys is connected to Gladys Plus: an admin of your Gladys can generate new recovery codes from Settings › Users. The reset by email is only available when no Gladys is connected.",
+    "resetTwoFactorExpired": "Your login session has expired: log in again with your password, then ask for the reset.",
+    "resetTwoFactorTooMany": "An email was sent less than a minute ago: check your mailbox (and your spam folder) before asking again.",
+    "resetTwoFactorError": "Unable to send the reset email. Please try again later.",
+    "twoFactorHelp": "Code refused, new phone? <a href=\"https://gladysassistant.com/docs/plus/two-factor-authentication/\" target=\"_blank\" rel=\"noopener noreferrer\">Read our 2FA troubleshooting guide</a>.",
     "useTwoFactorCodeLink": "Use a code from your two-factor app instead",
     "recoveryCodeLabel": "Recovery code",
     "recoveryCodePlaceholder": "Enter one of your recovery codes",
@@ -4810,6 +5645,26 @@
     "rotationWarning": "Generating a new set immediately invalidates the recovery codes you may already have. Only the new ones will work.",
     "continueButton": "Continue",
     "twoFactorCodeRequired": "Enter a code from your two-factor app: the Gateway requires it to generate recovery codes."
+  },
+  "gatewayTwoFactorApp": {
+    "cardTitle": "Your two-factor app",
+    "description": "New phone or new two-factor app? Register a new secret in it: your Gladys Plus account will then only accept the codes of this new app.",
+    "changeButton": "Change my two-factor app",
+    "replaceWarning": "Once confirmed, the codes of your current app will no longer be accepted. Your other recovery codes stay valid.",
+    "newCodeLabel": "Code displayed by your new app",
+    "currentCodeLabel": "Code displayed by your current app",
+    "currentCodeHelp": "The Gateway requires a code from the app currently registered to replace it.",
+    "useRecoveryCodeLink": "Lost your current app? Use a recovery code instead.",
+    "useCurrentCodeLink": "Use a code from your current app instead.",
+    "currentRecoveryCodeLabel": "One of your recovery codes",
+    "currentRecoveryCodeHelp": "This recovery code is consumed by the replacement. Once your new app is set up, generate a new set of recovery codes above.",
+    "invalidRecoveryCode": "The recovery code is invalid or already used, or the code of your new app is wrong or expired. Try again with a new code from your new app.",
+    "confirmButton": "Replace my two-factor app",
+    "replacedSuccess": "Your two-factor app has been replaced. From now on, use your new app to log in to Gladys Plus.",
+    "invalidCode": "One of the codes is invalid or expired. Try again with new codes generated by your apps.",
+    "tooManyAttempts": "Too many failed attempts. Wait a few minutes before trying again.",
+    "loadError": "We could not generate a new secret. Check your connection and try again.",
+    "updateError": "We could not replace your two-factor app. Try again."
   },
   "gatewayConfigureTwoFactor": {
     "cardTitle": "Configure two-factor authentication (2FA)",
@@ -4836,7 +5691,15 @@
     "backupNowButton": "Backup now",
     "backupStarted": "Backup started...",
     "notConfigured": "Gladys Plus need to be configured to enable backups. Go to the Gladys Plus tab to configure it.",
-    "restoreFailed": "Restoring the backup failed. Are you sure you have the same backup key used during the backup ? You can go to the Gladys Plus tab in settings to set another backup key."
+    "restoreFailed": "Restoring the backup failed. Are you sure you have the same backup key used during the backup ? You can go to the Gladys Plus tab in settings to set another backup key.",
+    "health": {
+      "failingTitle": "Your backups are failing",
+      "failingSince": "No Gladys Plus backup has succeeded since {{date}}.",
+      "lastSuccess": "Last successful backup: {{date}}.",
+      "noSuccessYet": "No backup has succeeded yet on this instance.",
+      "lastError": "Last error: {{error}}",
+      "retry": "Gladys retries every night and a few minutes after each start-up. The administrators are warned in the chat from the second failed night on, then once a week while it keeps failing; once warned, they are told as soon as a backup succeeds again. Details in the \"Tasks\" tab."
+    }
   },
   "alarmModes": {
     "armed": "armed",
@@ -4890,6 +5753,7 @@
     "milliliter": "Milliliter (ml)",
     "cubicmeter": "Cubic meter (m³)",
     "cubic-meter-per-hour": "Cubic meter per hour (m³/h)",
+    "cubic-meter-per-second": "Cubic meter per second (m³/s)",
     "euro": "Euro (€)",
     "dollar": "Dollar ($)",
     "bitcoin": "Bitcoin (₿)",
@@ -4988,6 +5852,7 @@
     "milliliter": "ml",
     "cubicmeter": "m³",
     "cubic-meter-per-hour": "m³/h",
+    "cubic-meter-per-second": "m³/s",
     "euro": "€",
     "dollar": "$",
     "bitcoin": "₿",
@@ -5170,6 +6035,14 @@
           "heating": "Heat",
           "cooling": "Cool",
           "auto": "Auto"
+        },
+        "preset": {
+          "schedule": "Schedule",
+          "frost": "Frost protection",
+          "away": "Away",
+          "eco": "Eco",
+          "night": "Night",
+          "comfort": "Comfort"
         }
       },
       "heater": {
@@ -5177,7 +6050,7 @@
           "comfort": "Comfort",
           "eco": "Eco",
           "off": "Off",
-          "frost-protection": "Frost Protection",
+          "frost-protection": "Frost protection",
           "comfort_-1": "Comfort -1°C",
           "comfort_-2": "Comfort -2°C"
         }
@@ -5209,6 +6082,13 @@
           "deep-clean": "Deep Clean",
           "vacuum": "Vacuum",
           "mop": "Mop"
+        }
+      },
+      "music": {
+        "repeat": {
+          "off": "Off",
+          "all": "All",
+          "one": "One track"
         }
       },
       "water-heater": {
@@ -5396,7 +6276,7 @@
       "heater": {
         "pilot-wire-mode": {
           "0": "Off",
-          "1": "Frost Protection",
+          "1": "Frost protection",
           "2": "Eco",
           "3": "Comfort -1°C",
           "4": "Comfort -2°C",
@@ -5470,6 +6350,23 @@
           "2": "Cooling",
           "3": "Auto"
         },
+        "preset": {
+          "0": "Schedule",
+          "1": "Frost protection",
+          "2": "Away",
+          "3": "Eco",
+          "4": "Night",
+          "5": "Comfort"
+        },
+        "active-preset": {
+          "unknown": "{{value}} (unknown)",
+          "0": "Off",
+          "1": "Frost protection",
+          "2": "Away",
+          "3": "Eco",
+          "4": "Night",
+          "5": "Comfort"
+        },
         "operating-state": {
           "unknown": "{{value}} (unknown)",
           "0": "Idle",
@@ -5510,7 +6407,14 @@
       "music": {
         "playback_state": {
           "0": "Paused",
-          "1": "Playing"
+          "1": "Playing",
+          "2": "Stopped",
+          "3": "Buffering"
+        },
+        "repeat": {
+          "0": "Off",
+          "1": "All",
+          "2": "One track"
         }
       },
       "opening-sensor": {
@@ -6212,6 +7116,10 @@
       "rock-setting": "Rocking",
       "wind-setting": "Wind mode"
     },
+    "flow-sensor": {
+      "shortCategoryName": "Flow sensor",
+      "decimal": "Flow"
+    },
     "hepa-filter-monitoring": {
       "shortCategoryName": "HEPA filter monitoring",
       "filter-life-remaining": "Filter life remaining"
@@ -6263,6 +7171,8 @@
       "shortCategoryName": "Thermostat",
       "target-temperature": "Thermostat Temperature",
       "mode": "Thermostat Mode",
+      "preset": "Thermostat Preset",
+      "active-preset": "Thermostat Active Preset",
       "operating-state": "Thermostat Operating State"
     },
     "airquality-sensor": {
@@ -6294,7 +7204,16 @@
       "previous": "Music previous button",
       "next": "Music next button",
       "playback_state": "Music playback state",
-      "play_notification": "Broadcast a notification"
+      "play_notification": "Broadcast a notification",
+      "title": "Track title",
+      "artist": "Artist",
+      "album": "Album",
+      "artwork": "Artwork",
+      "duration": "Track duration",
+      "position": "Playback position",
+      "shuffle": "Shuffle",
+      "repeat": "Repeat mode",
+      "mute": "Mute"
     },
     "lock": {
       "shortCategoryName": "Lock",
@@ -6356,6 +7275,7 @@
     "voiceInput": {
       "startListening": "Dictate a message",
       "stopListening": "Stop dictation",
+      "cancelListening": "Cancel dictation",
       "error": "Dictation failed. Check that Gladys Plus is connected, then try again.",
       "errorNoSpeech": "No voice detected. Check that your microphone is enabled, then try again.",
       "errorPermissionDenied": "Microphone access was denied. Allow it in your browser settings to dictate a message.",
@@ -6476,22 +7396,41 @@
   "gatewayLinkUser": {
     "title": "Configure Gladys Plus",
     "label": "Select your Gladys user",
-    "description": "Select the Gladys user you want to link your Gladys Plus account to. This user must be authorized locally on your instance: in your instance settings, \"Gladys Plus\" tab, \"Remote users\" section.",
+    "description": "Select the Gladys user you want to link your Gladys Plus account to. This user must be authorized locally on your instance: in your instance settings, \"Users\" tab, \"Remote access\" section of your user.",
     "noInstanceFoundTitle": "One last step!",
     "noInstanceFoundIntro": "Your Gladys Plus account is active 🙂 The only thing left is to connect your Gladys instance (the one installed at your home) to your Gladys Plus account. This is a normal step the first time you use Gladys Plus, nothing is broken! Follow these steps:",
     "noInstanceFoundStepOpenLocalInstance": "Open your Gladys instance <b>locally</b>, from your home network, using its usual local address (for example <code>http://your-device-ip-address</code>).",
     "noInstanceFoundStepGoToSettings": "Log in, then go to <b>Settings</b>, \"<b>Gladys Plus</b>\" tab.",
     "noInstanceFoundStepLogin": "Click on \"<b>I already have an account</b>\", then sign in with your Gladys Plus account (the same email and password as here).",
-    "noInstanceFoundStepAcceptUser": "Still in the \"Gladys Plus\" tab, \"<b>Remote users</b>\" section, <b>authorize your user</b> by turning on the switch next to their name. This local validation guarantees that only the encryption keys you approved at your home can access your instance (protection against man-in-the-middle attacks).",
+    "noInstanceFoundStepAcceptUser": "Go to the \"<b>Users</b>\" tab: under your user, <b>authorize your remote access</b> by turning on the switch. This local validation guarantees that only the encryption keys you approved at your home can access your instance (protection against man-in-the-middle attacks).",
     "noInstanceFoundStepComeBack": "Come back to this page, then click on the button below.",
     "noInstanceFoundRetryButton": "I connected my instance, try again",
     "noInstanceFoundTutorialLink": "Need a step-by-step guide with screenshots? <a href=\"https://gladysassistant.com/docs/plus/connect-gladys-plus/\" target=\"_blank\" rel=\"noopener noreferrer\">Check out the tutorial in our documentation</a>.",
     "noInstanceFoundNote": "Already completed this step in the past? It sometimes needs to be done again, for example when your two-factor authentication (2FA) was reset: simply log in again in the \"Gladys Plus\" tab of your instance. Need help? Contact us at <a href=\"mailto:hello@gladysassistant.com\">hello@gladysassistant.com</a>.",
     "error": "An error occurred. Is your user accepted locally in your Gladys instance?",
-    "errorNotAcceptedLocally": "The user has not been authorized locally in the Gladys instance yet. In your local instance, go to the settings, \"Gladys Plus\" tab, \"Remote users\" section, and turn on the switch next to their name.",
+    "keysChangedTitle": "Your access needs to be authorized again",
+    "keysChangedIntro": "Your Gladys Plus encryption keys have changed since your Gladys instance authorized them. This is expected after resetting your Gladys Plus password (\"Forgot password\"): new keys are generated. For security, your instance refuses any key it has not validated itself. Nothing is broken: you just need to authorize your user again, from your home.",
+    "notAcceptedTitle": "Your access needs to be authorized",
+    "notAcceptedIntro": "Your Gladys Plus account is linked to your Gladys instance, but your user is not (or no longer) authorized to access it remotely. For security, each Gladys Plus user must be authorized from the instance itself, at your home: nobody, not even the Gladys Plus servers, can access your home without this validation.",
+    "notAcceptedUnknownReasonIntro": "Your Gladys instance has not authorized your user to access it remotely, or no longer does. This is expected the first time, but also after resetting your Gladys Plus password: new encryption keys are generated, and your instance needs to validate them again. For security, this authorization can only be done from the instance itself, at your home.",
+    "notAcceptedAskAdmin": "Only an administrator of your Gladys instance can authorize your access. If you are not one, ask the person who manages Gladys at your home to follow these steps.",
+    "notAcceptedStepGoToUsers": "Log in, then go to <b>Settings</b>, \"<b>Users</b>\" tab.",
+    "notAcceptedStepAcceptUser": "Under your user, \"<b>Remote access</b>\" section, check that the key fingerprints displayed match the ones below, then <b>turn on the switch</b>.",
+    "notAcceptedFingerprintsLabel": "Your encryption key fingerprints:",
+    "rsaKeyFingerprint": "RSA key:",
+    "ecdsaKeyFingerprint": "ECDSA key:",
+    "stillNotAccepted": "Your user is still not authorized. Check that the switch next to your name is turned on in your instance, then try again.",
+    "notAcceptedRetryButton": "My user is authorized, try again",
     "saveButton": "Save",
     "manageBillingLink": "Manage my subscription and invoices",
     "logoutButton": "Log out"
+  },
+  "deviceFeatureHistorySize": {
+    "size": {
+      "one": "1 state in the history (≈ {{size}})",
+      "other": "{{count}} states in the history (≈ {{size}})"
+    },
+    "empty": "No state in the history"
   },
   "editDeviceForm": {
     "noName": "No name",
@@ -6562,6 +7501,17 @@
     "dontHaveAccount": "Don't have an account yet?",
     "signupLink": "Signup"
   },
+  "gatewayResetTwoFactor": {
+    "pageTitle": "Gladys Assistant",
+    "formTitle": "Gladys Plus - Reset two-factor authentication",
+    "description": "You asked to reset the two-factor authentication of your Gladys Plus account. Once reset, your authenticator app and your recovery codes stop working: at your next login, Gladys Plus asks you to set up a new app, then to save new recovery codes.",
+    "button": "Reset my two-factor authentication",
+    "success": "Your two-factor authentication was reset. Log in with your password: Gladys Plus will ask you to set up a new authenticator app.",
+    "loginLink": "Log in",
+    "errorLink": "This link is invalid, already used or expired. Request a new one from the login page.",
+    "instanceConnected": "Your Gladys is connected to Gladys Plus again: an admin of your Gladys can generate new recovery codes from Settings › Users instead. This link stays valid while no Gladys is connected.",
+    "error": "Unable to reset your two-factor authentication. Please try again later."
+  },
   "gatewayResetPassword": {
     "pageTitle": "Gladys Assistant",
     "formTitle": "Gladys Plus - Reset Password",
@@ -6580,7 +7530,8 @@
     "useTwoFactorCodeLink": "Use a code from your two-factor app instead",
     "recoveryCodeLabel": "Recovery code",
     "recoveryCodePlaceholder": "Enter one of your recovery codes",
-    "resetPasswordButton": "Reset Password"
+    "resetPasswordButton": "Reset Password",
+    "resetTwoFactorThenComeBack": "Once your two-factor authentication is reset, come back to this page: your reset password link stays valid for two hours."
   },
   "gatewayOpenApi": {
     "title": "Open API",
@@ -6631,19 +7582,6 @@
     "passwordPlaceholder": "Password",
     "passwordInvalid": "Password should be 8 characters",
     "createAccountButton": "Create new account"
-  },
-  "gatewayUsers": {
-    "managerUsersLabel": "Manage your users",
-    "revokeError": "You cannot revoke this user.",
-    "columnName": "Name",
-    "columnRole": "Role",
-    "columnStatus": "Status",
-    "columnAddDate": "Added at",
-    "columnRevoke": "Revoke",
-    "emailPlaceholder": "Email",
-    "roleAdmin": "Administrator",
-    "roleUser": "User",
-    "inviteUserButton": "Invite User"
   },
   "gatewayBilling": {
     "title": "Billing",
