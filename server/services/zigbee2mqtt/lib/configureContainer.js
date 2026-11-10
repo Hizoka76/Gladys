@@ -3,6 +3,7 @@ const { constants } = require('fs');
 const path = require('path');
 const yaml = require('yaml');
 const portfinder = require('portfinder');
+const cloneDeep = require('lodash.clonedeep');
 
 const logger = require('../../../utils/logger');
 const { DEFAULT, ADAPTER_MODE } = require('./constants');
@@ -15,9 +16,6 @@ const {
 } = require('../adapters');
 
 const YAML_CONFIG = { singleQuote: true };
-// A network coordinator serial port is a URL ('tcp://', 'socket://', 'mdns://'...),
-// while a USB one is a device path
-const NETWORK_SERIAL_PORT_REGEX = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 /**
  * @description Configure Z2M container.
@@ -51,7 +49,19 @@ async function configureContainer(basePathOnContainer, config, setupMode = false
 
   // Check for changes
   const fileContent = await fs.readFile(configFilepath);
-  const loadedConfig = yaml.parse(fileContent.toString());
+  let loadedConfig = yaml.parse(fileContent.toString());
+  // Started without configuration file (its data folder removed while its container ran), Zigbee2mqtt writes its
+  // own, flagged "onboarding", and waits at every start for the user to fill its onboarding page, never shown by
+  // Gladys. Never completed, this file holds nothing to keep: it is replaced as if there was none. Its network key
+  // still "GENERATE" (replaced by Zigbee2mqtt once its network started) tells it from a used file, left untouched.
+  // The keys "GENERATE" are not kept: Zigbee2mqtt would draw new ones, and lose the network of the Gladys
+  // installations, which run with its default keys.
+  if (loadedConfig.onboarding && (loadedConfig.advanced || {}).network_key === 'GENERATE') {
+    logger.info('Z2M configuration file waits for an onboarding, writing default Z2M configuration...');
+    await fs.writeFile(configFilepath, yaml.stringify(DEFAULT.CONFIGURATION_CONTENT));
+    loadedConfig = cloneDeep(DEFAULT.CONFIGURATION_CONTENT);
+    configCreated = true;
+  }
   const { mqtt = {} } = loadedConfig;
 
   let configChanged = false;
@@ -80,10 +90,10 @@ async function configureContainer(basePathOnContainer, config, setupMode = false
     // Set default adapter if not found
     adapterKey = adapterKey || DEFAULT_KEY;
     serialOptions = SERIAL_OPTIONS_BY_ADAPTER[config.z2mDongleName] || {};
-    if (NETWORK_SERIAL_PORT_REGEX.test(`${serialPort}`)) {
-      // Coming back from a network coordinator: restore the USB device path bound in the container
-      serialPort = DEFAULT.CONFIGURATION_CONTENT.serial.port;
-    }
+    // The container only exposes the USB dongle at this fixed path, whatever its path on the host is
+    // (/dev/ttyUSB0, /dev/ttyACM1...). Any other value (a network URL left by a previous network
+    // coordinator, or the host path of the dongle) would make Z2M fail to open the serial port.
+    serialPort = DEFAULT.CONFIGURATION_CONTENT.serial.port;
   }
 
   const newSerial = { ...serial, port: serialPort, adapter: adapterKey, ...serialOptions };

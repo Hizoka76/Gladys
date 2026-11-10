@@ -6,7 +6,15 @@ import get from 'get-value';
 import DeviceFeatureValueText from '../../device/DeviceFeatureValueText';
 import ApexChartComponent from '../chart/ApexChartComponent';
 import Modal from '../../../routes/integration/all/external-integration/components/Modal';
-import { text, formatNumber, formatDate, getUrlDomain, CHART_INTERVAL_MINUTES } from './widgetContentUtils';
+import { ConfigField } from '../../integration/ConfigSchemaForm';
+import {
+  text,
+  formatNumber,
+  formatDate,
+  getUrlDomain,
+  CHART_INTERVAL_MINUTES,
+  findRefusedField
+} from './widgetContentUtils';
 import style from './style.css';
 
 // semantic colors of the vocabulary -> the accent class of the theme
@@ -82,8 +90,8 @@ const Gauge = ({ component, feature, language }) => {
   const ratio = hasValue && max > min ? Math.min(1, Math.max(0, (rawValue - min) / (max - min))) : 0;
   const unit = component.device_feature_selector ? null : component.unit;
   return (
-    <div>
-      <svg class={cx(style.gauge, colorClass(component.color || 'primary'))} viewBox="0 0 88 72" aria-hidden="true">
+    <div class={style.gaugeBox}>
+      <svg class={cx(style.gauge, colorClass(component.color || 'primary'))} viewBox="0 0 88 66" aria-hidden="true">
         <path
           class={style.gaugeTrack}
           d="M 20 62 A 34 34 0 1 1 68 62"
@@ -104,27 +112,31 @@ const Gauge = ({ component, feature, language }) => {
 };
 
 export const WidgetTiles = ({ components, featuresBySelector, deviceNamesBySelector, language }) => (
-  <div class={style.tiles}>
-    {components.map(component => {
-      const feature = component.device_feature_selector ? featuresBySelector[component.device_feature_selector] : null;
-      const label =
-        text(component.label, language) ||
-        (component.device_feature_selector && deviceNamesBySelector[component.device_feature_selector]) ||
-        '';
-      return (
-        <div class={style.tile}>
-          {component.icon && component.type === 'value' && (
-            <i class={cx(`fe fe-${component.icon}`, style.tileIcon, colorClass(component.color))} />
-          )}
-          {component.type === 'gauge' ? (
-            <Gauge component={component} feature={feature} language={language} />
-          ) : (
-            <TileValue component={component} feature={feature} language={language} />
-          )}
-          {label && <span class={style.tileLabel}>{label}</span>}
-        </div>
-      );
-    })}
+  <div class={style.tilesBox}>
+    <div class={cx(style.tiles, style[`tilesCount${Math.min(components.length, 6)}`])}>
+      {components.map(component => {
+        const feature = component.device_feature_selector
+          ? featuresBySelector[component.device_feature_selector]
+          : null;
+        const label =
+          text(component.label, language) ||
+          (component.device_feature_selector && deviceNamesBySelector[component.device_feature_selector]) ||
+          '';
+        return (
+          <div class={style.tile}>
+            {component.icon && component.type === 'value' && (
+              <i class={cx(`fe fe-${component.icon}`, style.tileIcon, colorClass(component.color))} />
+            )}
+            {component.type === 'gauge' ? (
+              <Gauge component={component} feature={feature} language={language} />
+            ) : (
+              <TileValue component={component} feature={feature} language={language} />
+            )}
+            {label && <span class={style.tileLabel}>{label}</span>}
+          </div>
+        );
+      })}
+    </div>
   </div>
 );
 
@@ -524,7 +536,15 @@ export class WidgetChart extends Component {
 
 // --- buttons -------------------------------------------------------------
 
-export const WidgetButtons = ({ components, featuresBySelector, pending, onAction, onDeviceFeature, language }) => (
+export const WidgetButtons = ({
+  components,
+  featuresBySelector,
+  pending,
+  openFormIndex,
+  onAction,
+  onDeviceFeature,
+  language
+}) => (
   <div class={style.buttons}>
     {components.map((component, index) => {
       const icon = component.icon;
@@ -561,12 +581,15 @@ export const WidgetButtons = ({ components, featuresBySelector, pending, onActio
           </button>
         );
       }
+      // a button declaring `fields` toggles its form instead of posting
+      const hasForm = Boolean(component.action.fields);
       return (
         <button
           type="button"
-          class={buttonClass}
+          class={cx(buttonClass, { [style.buttonOpen]: hasForm && openFormIndex === index })}
           disabled={pending[index]}
           onClick={() => onAction(component, index)}
+          aria-expanded={hasForm ? String(openFormIndex === index) : undefined}
           data-cy={`external-widget-action-${component.action.key}`}
         >
           <span class={style.buttonIcon}>
@@ -578,3 +601,67 @@ export const WidgetButtons = ({ components, featuresBySelector, pending, onActio
     })}
   </div>
 );
+
+// --- action form ---------------------------------------------------------
+
+// The form behind a widget action button (spec section 7): opened by a tap,
+// never shown on the card at rest, rendered by the config_schema engine and
+// pre-filled with the defaults the integration put in the content. The core
+// validates the values against the same declaration: its 422 outlines the
+// refused field and names it by its label — the core's own wording is not
+// meant for the user.
+export const WidgetActionForm = ({
+  component,
+  values,
+  error,
+  pending,
+  idPrefix,
+  language,
+  onChange,
+  onSubmit,
+  onCancel
+}) => {
+  const { fields } = component.action;
+  const refusedField = error ? findRefusedField(fields, error) : null;
+  return (
+    <form class={style.actionForm} onSubmit={onSubmit} data-cy={`external-widget-action-form-${component.action.key}`}>
+      <div class={style.actionFormTitle}>
+        <i class={`fe fe-${component.icon || 'play'}`} />
+        <span>{text(component.label, language)}</span>
+      </div>
+      {fields.map(field => (
+        <div key={field.key} class={cx({ [style.actionFormFieldRefused]: refusedField === field })}>
+          <ConfigField
+            field={field}
+            language={language}
+            values={values}
+            configuredSecrets={[]}
+            touchedSecrets={{}}
+            updateConfigValue={onChange}
+            idPrefix={idPrefix}
+          />
+        </div>
+      ))}
+      {error && (
+        <div class="text-danger small" role="alert" data-cy="external-widget-action-form-error">
+          {refusedField ? (
+            <Text
+              id="dashboard.boxes.external-widget.actionFormInvalidField"
+              fields={{ label: text(refusedField.label, language) || refusedField.key }}
+            />
+          ) : (
+            <Text id="dashboard.boxes.external-widget.actionFormInvalid" />
+          )}
+        </div>
+      )}
+      <div class={style.actionFormButtons}>
+        <button type="button" class="btn btn-secondary" onClick={onCancel} disabled={pending}>
+          <Text id="dashboard.boxes.external-widget.actionFormClose" />
+        </button>
+        <button type="submit" class={cx('btn btn-primary', { 'btn-loading': pending })} disabled={pending}>
+          <Text id="dashboard.boxes.external-widget.actionFormSend" />
+        </button>
+      </div>
+    </form>
+  );
+};

@@ -11,6 +11,7 @@ import withIntlAsProp from '../../../../utils/withIntlAsProp';
 
 import { DEVICE_FEATURE_CATEGORIES, DEVICE_FEATURE_TYPES } from '../../../../../../server/utils/constants';
 import TextWithVariablesInjected from '../../../../components/scene/TextWithVariablesInjected';
+import FormulaFunctionsHelp from '../../../../components/scene/FormulaFunctionsHelp';
 
 import '../../../../components/boxs/device-in-room/device-features/style.css';
 import style from './DeviceSetValue.css';
@@ -161,6 +162,7 @@ class DeviceSetValue extends Component {
           <div className={style.explanationText}>
             <Text id="editScene.actionsCard.deviceSetValue.computedExplanationText" />
           </div>
+          <FormulaFunctionsHelp />
           <div class="input-group">
             <Localizer>
               <TextWithVariablesInjected
@@ -259,7 +261,13 @@ class DeviceSetValue extends Component {
       );
     }
 
-    if (this.state.deviceFeature.type === DEVICE_FEATURE_TYPES.FAN.MODE) {
+    // The category matters as much as the type here: `mode` is the type of five
+    // categories (cube, air conditioning, fan, thermostat, water heater), so
+    // testing the type alone handed every one of them the fan's speeds.
+    if (
+      this.state.deviceFeature.category === DEVICE_FEATURE_CATEGORIES.FAN &&
+      this.state.deviceFeature.type === DEVICE_FEATURE_TYPES.FAN.MODE
+    ) {
       return <SelectFanMode updateValue={this.handleNewPureValue} value={this.props.action.value} />;
     }
 
