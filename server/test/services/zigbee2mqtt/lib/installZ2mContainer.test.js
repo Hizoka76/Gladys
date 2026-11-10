@@ -7,6 +7,7 @@ const proxyquire = require('proxyquire').noCallThru();
 const { assert, fake, stub } = sinon;
 
 const { EVENTS, WEBSOCKET_MESSAGE_TYPES } = require('../../../../utils/constants');
+const { ConflictError } = require('../../../../utils/coreErrors');
 
 const configureContainer = fake.resolves({ configChanged: false, adapterChanged: false });
 const Zigbee2mqttManager = proxyquire('../../../../services/zigbee2mqtt/lib', {
@@ -15,16 +16,22 @@ const Zigbee2mqttManager = proxyquire('../../../../services/zigbee2mqtt/lib', {
 
 const container = {
   id: 'docker-test',
+  name: '/gladys-z2m-zigbee2mqtt',
   state: 'running',
+  labels: { 'io.gladysassistant.service': 'zigbee2mqtt' },
 };
 
 const containerStopped = {
   id: 'docker-test',
+  name: '/gladys-z2m-zigbee2mqtt',
   state: 'stopped',
+  labels: { 'io.gladysassistant.service': 'zigbee2mqtt' },
 };
 
 const containerDescription = {
   Id: 'a8293feec54547a797aa2e52cc14b93f89a007d6c5608c587e30491feec8ee61',
+  // Started long ago: a running Zigbee2mqtt
+  State: { StartedAt: '2026-01-01T08:00:00.123456789Z' },
   HostConfig: {
     NetworkMode: 'host',
     RestartPolicy: {
@@ -93,7 +100,33 @@ describe('zigbee2mqtt installz2mContainer', () => {
   });
 
   afterEach(() => {
+    // A startup window left open must not end during another test
+    clearTimeout(zigbee2mqttManager.startingTimer);
     sinon.reset();
+  });
+
+  it('should end the startup window when Zigbee2mqtt does not answer in time', async () => {
+    // PREPARE
+    // Only the startup timer is faked: the wait after the restart and the log stream keep real timers
+    const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      // EXECUTE
+      await zigbee2mqttManager.installZ2mContainer({});
+      clock.tick(zigbee2mqttManager.zigbee2mqttStartingTimeoutInMs - 1);
+      expect(zigbee2mqttManager.zigbee2mqttStarting).to.equal(true);
+      gladys.event.emit.resetHistory();
+      clock.tick(1);
+      // ASSERT
+      // Zigbee2mqtt crashed before connecting to the broker: it is shown as not answering, not as starting
+      expect(zigbee2mqttManager.zigbee2mqttStarting).to.equal(false);
+      expect(zigbee2mqttManager.startingTimer).to.equal(null);
+      assert.calledOnceWithExactly(gladys.event.emit, EVENTS.WEBSOCKET.SEND_ALL, {
+        type: WEBSOCKET_MESSAGE_TYPES.ZIGBEE2MQTT.STATUS_CHANGE,
+        payload: sinon.match.has('zigbee2mqttStarting', false),
+      });
+    } finally {
+      clock.restore();
+    }
   });
 
   it('should restart z2m container (container stopped)', async () => {
@@ -114,8 +147,9 @@ describe('zigbee2mqtt installz2mContainer', () => {
         networkModeValid: true,
         usbConfigured: false,
         networkAdapterConfigured: false,
-        z2mEnabled: false,
+        z2mEnabled: true,
         zigbee2mqttConnected: false,
+        zigbee2mqttStarting: false,
         zigbee2mqttExist: true,
         zigbee2mqttRunning: false,
         coordinatorFirmware: null,
@@ -123,8 +157,28 @@ describe('zigbee2mqtt installz2mContainer', () => {
         mqttConnectionError: null,
       },
     });
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
     expect(zigbee2mqttManager.zigbee2mqttExist).to.equal(true);
+    // Gladys restarted the container: Zigbee2mqtt is shown as starting until it answers
+    expect(zigbee2mqttManager.zigbee2mqttStarting).to.equal(true);
+  });
+
+  it('should read the logs of the container from its restart only', async () => {
+    // PREPARE
+    const clock = sinon.useFakeTimers({ now: 1700000000500, toFake: ['Date'] });
+    try {
+      // EXECUTE
+      await zigbee2mqttManager.installZ2mContainer({});
+    } finally {
+      clock.restore();
+    }
+    // ASSERT
+    // The error of a previous run must not be shown while the new one starts
+    assert.calledOnceWithExactly(gladys.system.getContainerLogs, container.id, {
+      follow: true,
+      since: 1700000000,
+      tail: 'all',
+    });
   });
 
   it('should restart z2m container (container running but config changed)', async () => {
@@ -147,23 +201,24 @@ describe('zigbee2mqtt installz2mContainer', () => {
         networkModeValid: true,
         usbConfigured: false,
         networkAdapterConfigured: false,
-        z2mEnabled: false,
+        z2mEnabled: true,
         zigbee2mqttConnected: false,
+        zigbee2mqttStarting: true,
         zigbee2mqttExist: true,
-        zigbee2mqttRunning: true,
+        zigbee2mqttRunning: false,
         coordinatorFirmware: null,
         z2mContainerError: null,
         mqttConnectionError: null,
       },
     });
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
     expect(zigbee2mqttManager.zigbee2mqttExist).to.equal(true);
   });
 
   it('should remove and recreate z2m container when adapter type changes', async () => {
     // PREPARE
     const config = { z2mDriverPath: '/dev/ttyUSB0' };
-    const newContainer = { id: 'docker-test-new', state: 'stopped' };
+    const newContainer = { ...containerStopped, id: 'docker-test-new' };
     const getContainersStub = stub();
     getContainersStub
       .onFirstCall()
@@ -181,7 +236,7 @@ describe('zigbee2mqtt installz2mContainer', () => {
     assert.calledOnce(gladys.system.removeContainer);
     assert.calledOnce(gladys.system.createContainer);
     assert.calledOnceWithExactly(gladys.system.restartContainer, newContainer.id);
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
     expect(zigbee2mqttManager.zigbee2mqttExist).to.equal(true);
   });
 
@@ -205,7 +260,7 @@ describe('zigbee2mqtt installz2mContainer', () => {
     expect(createdDescriptor.HostConfig.Binds).to.deep.equal([
       `${path.join(__dirname, 'host')}/zigbee2mqtt/z2m:/app/data`,
     ]);
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
   });
 
   it('should create the z2m container with the timezone of the user', async () => {
@@ -323,17 +378,49 @@ describe('zigbee2mqtt installz2mContainer', () => {
         networkModeValid: true,
         usbConfigured: false,
         networkAdapterConfigured: false,
-        z2mEnabled: false,
+        z2mEnabled: true,
         zigbee2mqttConnected: false,
+        zigbee2mqttStarting: false,
         zigbee2mqttExist: true,
-        zigbee2mqttRunning: true,
+        zigbee2mqttRunning: false,
         coordinatorFirmware: null,
         z2mContainerError: null,
         mqttConnectionError: null,
       },
     });
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
     expect(zigbee2mqttManager.zigbee2mqttExist).to.equal(true);
+    // The container was already running: Gladys did not start it
+    expect(zigbee2mqttManager.zigbee2mqttStarting).to.equal(false);
+    // Running for long: its logs do not explain a startup failure
+    assert.notCalled(gladys.system.getContainerLogs);
+  });
+
+  it('should read the logs of a container left running that started recently', async () => {
+    // PREPARE
+    // Crashing in a loop, seen between two restarts
+    const clock = sinon.useFakeTimers({ now: Date.parse('2026-11-06T18:30:00Z'), toFake: ['Date'] });
+    try {
+      gladys.system.getContainers = fake.resolves([container]);
+      gladys.system.inspectContainer = fake.resolves({
+        ...containerDescription,
+        State: { StartedAt: '2026-11-06T18:29:40.123456789Z' },
+      });
+      // EXECUTE
+      await zigbee2mqttManager.installZ2mContainer({});
+    } finally {
+      clock.restore();
+    }
+    // ASSERT
+    assert.notCalled(gladys.system.restartContainer);
+    // Its current run only
+    assert.calledOnceWithExactly(gladys.system.getContainerLogs, container.id, {
+      follow: true,
+      since: Date.parse('2026-11-06T18:29:40Z') / 1000,
+      tail: 'all',
+    });
+    // Gladys did not start it: not shown as starting
+    expect(zigbee2mqttManager.zigbee2mqttStarting).to.equal(false);
   });
 
   it('should update restart policy of an existing z2m container missing it (#2734)', async () => {
@@ -395,7 +482,7 @@ describe('zigbee2mqtt installz2mContainer', () => {
     assert.calledOnce(gladys.system.updateContainer);
     // The container must still be (re)started despite the failed policy update
     assert.calledOnce(gladys.system.restartContainer);
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
   });
 
   it('should not update restart policy when it already matches the expected one', async () => {
@@ -436,6 +523,7 @@ describe('zigbee2mqtt installz2mContainer', () => {
         networkAdapterConfigured: false,
         z2mEnabled: false,
         zigbee2mqttConnected: false,
+        zigbee2mqttStarting: false,
         zigbee2mqttExist: false,
         zigbee2mqttRunning: false,
         coordinatorFirmware: null,
@@ -445,6 +533,8 @@ describe('zigbee2mqtt installz2mContainer', () => {
     });
     expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
     expect(zigbee2mqttManager.zigbee2mqttExist).to.equal(false);
+    expect(zigbee2mqttManager.zigbee2mqttStarting).to.equal(false);
+    expect(zigbee2mqttManager.startingTimer).to.equal(null);
   });
 
   it('it should fail to install z2m container', async () => {
@@ -473,6 +563,7 @@ describe('zigbee2mqtt installz2mContainer', () => {
         networkAdapterConfigured: false,
         z2mEnabled: false,
         zigbee2mqttConnected: false,
+        zigbee2mqttStarting: false,
         zigbee2mqttExist: false,
         zigbee2mqttRunning: false,
         coordinatorFirmware: null,
@@ -510,10 +601,11 @@ describe('zigbee2mqtt installz2mContainer', () => {
         networkModeValid: true,
         usbConfigured: false,
         networkAdapterConfigured: false,
-        z2mEnabled: false,
+        z2mEnabled: true,
         zigbee2mqttConnected: false,
+        zigbee2mqttStarting: false,
         zigbee2mqttExist: true,
-        zigbee2mqttRunning: true,
+        zigbee2mqttRunning: false,
         coordinatorFirmware: null,
         z2mContainerError: null,
         mqttConnectionError: null,
@@ -529,8 +621,9 @@ describe('zigbee2mqtt installz2mContainer', () => {
         networkModeValid: true,
         usbConfigured: false,
         networkAdapterConfigured: false,
-        z2mEnabled: false,
+        z2mEnabled: true,
         zigbee2mqttConnected: false,
+        zigbee2mqttStarting: false,
         zigbee2mqttExist: true,
         zigbee2mqttRunning: false,
         coordinatorFirmware: null,
@@ -540,7 +633,7 @@ describe('zigbee2mqtt installz2mContainer', () => {
     });
     assert.calledOnceWithExactly(configureContainer, basePathOnContainer, config, false);
     assert.calledOnce(gladys.system.createContainer);
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
     expect(zigbee2mqttManager.zigbee2mqttExist).to.equal(true);
     expect(config).to.deep.equal({});
   });
@@ -565,7 +658,8 @@ describe('zigbee2mqtt installz2mContainer', () => {
     });
     // ASSERT
     expect(zigbee2mqttManager.z2mContainerError).to.deep.equal({ code: 'EZSP_PROTOCOL_VERSION', message: null });
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    // The container started, but Zigbee2mqtt does not run: it never reported itself online
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
   });
 
   it('should not set error when container logs are clean', async () => {
@@ -584,7 +678,7 @@ describe('zigbee2mqtt installz2mContainer', () => {
     await zigbee2mqttManager.installZ2mContainer(config);
     // ASSERT
     expect(zigbee2mqttManager.z2mContainerError).to.equal(null);
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
   });
 
   it('should not fail startup when getContainerLogs throws', async () => {
@@ -596,6 +690,32 @@ describe('zigbee2mqtt installz2mContainer', () => {
     await zigbee2mqttManager.installZ2mContainer(config);
     // ASSERT
     expect(zigbee2mqttManager.z2mContainerError).to.equal(null);
-    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(true);
+    expect(zigbee2mqttManager.zigbee2mqttRunning).to.equal(false);
+  });
+
+  it('should not adopt nor remove a user container carrying our name', async () => {
+    // PREPARE
+    const config = { z2mDriverPath: '/dev/ttyUSB0' };
+    gladys.system.getContainers = fake.resolves([
+      { id: 'user-container', name: '/gladys-z2m-zigbee2mqtt', image: 'nginx:alpine' },
+    ]);
+    gladys.system.inspectContainer = fake.resolves({ Config: { Image: 'nginx:alpine' } });
+    // EXECUTE
+    let error;
+    try {
+      await zigbee2mqttManager.installZ2mContainer(config);
+    } catch (e) {
+      error = e;
+    }
+    // ASSERT
+    expect(error).to.be.instanceOf(ConflictError);
+    assert.notCalled(gladys.system.stopContainer);
+    assert.notCalled(gladys.system.removeContainer);
+    assert.notCalled(gladys.system.createContainer);
+    assert.notCalled(gladys.system.restartContainer);
+    // the message is shown as is by the setup page, so the user reads which container to rename
+    expect(zigbee2mqttManager.z2mContainerError).to.deep.equal({ code: null, message: error.message });
+    expect(zigbee2mqttManager.zigbee2mqttExist).to.equal(false);
+    assert.calledOnce(gladys.event.emit);
   });
 });

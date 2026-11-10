@@ -1,6 +1,9 @@
-.userNameCell {
-  max-width: 300px;
-  overflow-x: scroll;
+/* the authorized / pending counters of the remote users card */
+.remoteUsersSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .pricingPage h1 {
@@ -41,6 +44,11 @@
   background: #eef3fa;
   color: #467fcf;
   font-size: 1.4rem;
+}
+
+/* In the row layout, a long description must not squeeze the icon */
+.newFeatureCard .featureIcon {
+  flex-shrink: 0;
 }
 
 .planCard {
