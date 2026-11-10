@@ -187,6 +187,41 @@ const THERMOSTAT_OPERATING_STATE = {
   COOLING: 2,
 };
 
+// Which temperature a thermostat aims for, as opposed to THERMOSTAT_MODE, which says
+// what the machine does (off, heating, cooling). The two compose: a thermostat in
+// heating mode follows a programme whose 07:00 point is COMFORT. This is the
+// hvac_mode / preset_mode split of Home Assistant and the system_mode / preset split
+// of Zigbee TRVs, and it is what makes a weekly schedule expressible — "heating" is
+// not something that can be put in a time slot.
+// SCHEDULE means "follow the weekly programme", like preset: auto on Zigbee2MQTT.
+// There is no OFF: stopping is a mode, and THERMOSTAT_MODE.OFF already carries it.
+// Values are append-only: an existing integer never changes meaning, because it is
+// stored in device states and hard-coded in users' scenes.
+const THERMOSTAT_PRESET = {
+  SCHEDULE: 0,
+  FROST: 1,
+  AWAY: 2,
+  ECO: 3,
+  NIGHT: 4,
+  COMFORT: 5,
+};
+
+// The preset actually in force on a thermostat, as opposed to THERMOSTAT_PRESET,
+// which is the standing choice: while the thermostat follows its programme, that
+// choice reads SCHEDULE whatever the current point is, so it never changes when
+// the programme moves on and no scene can start on it. This one does. The values
+// are THERMOSTAT_PRESET's, SCHEDULE aside — a programme is never in force, one of
+// its points is — and 0 says the thermostat is stopped, by its mode or by an Off
+// point of the programme. Values are append-only, as above.
+const THERMOSTAT_ACTIVE_PRESET = {
+  OFF: 0,
+  FROST: 1,
+  AWAY: 2,
+  ECO: 3,
+  NIGHT: 4,
+  COMFORT: 5,
+};
+
 const FAN_MODE = {
   OFF: 0,
   LOW: 1,
@@ -261,9 +296,41 @@ const PILOT_WIRE_MODE = {
   COMFORT: 5,
 };
 
+// Playback state of a music player (capabilities/music.md, section 1). PAUSED/PLAYING predate
+// the two others and are kept as published; IDLE = nothing loaded or playback stopped,
+// BUFFERING is reported only. Writing 0/1/2 pauses/plays/stops when the feature is writable.
 const MUSIC_PLAYBACK_STATE = {
   PLAYING: 1,
   PAUSED: 0,
+  IDLE: 2,
+  BUFFERING: 3,
+};
+
+// Repeat mode of a music player: OFF, ALL (the queue), ONE (the current track).
+const MUSIC_REPEAT_MODE = {
+  OFF: 0,
+  ALL: 1,
+  ONE: 2,
+};
+
+// Types of the MediaItem objects served by the on-demand music catalog
+// (capabilities/music.md, section 4.2): never a vendor label.
+const MUSIC_MEDIA_TYPES = {
+  TRACK: 'track',
+  ALBUM: 'album',
+  ARTIST: 'artist',
+  PLAYLIST: 'playlist',
+  RADIO: 'radio',
+  FOLDER: 'folder',
+};
+
+// Playback modes of a music play command: REPLACE replaces the current
+// playback (every integration), NEXT/APPEND enqueue (integrations declaring
+// `music.append` in their manifest).
+const MUSIC_PLAY_MODES = {
+  REPLACE: 'replace',
+  NEXT: 'next',
+  APPEND: 'append',
 };
 
 const OPENING_SENSOR_STATE = {
@@ -434,6 +501,12 @@ const SERVICE_TYPES = {
   EXTERNAL: 'external',
 };
 
+const CALENDAR_TYPES = {
+  CALDAV: 'CALDAV',
+  WEBCAL: 'WEBCAL',
+  EXTERNAL: 'EXTERNAL',
+};
+
 // Sentinel value of the `service` property of the message scene actions
 // ("send message", "send message with camera", "ask the AI"): keep the
 // message in the Gladys conversation only, without forwarding it to a single
@@ -463,7 +536,17 @@ const INTEGRATION_CATALOG_CATEGORIES = [
   'notifications',
   'assistants',
   'services',
+  'transport',
+  'vehicles',
+  'servers',
+  'leisure',
 ];
+
+// The timezone of the instance when the TIMEZONE system setting is not set: the
+// scene engine evaluates its triggers in it, and the full-day events of the
+// calendar integrations are stored at its midnights — one constant, so that
+// both stay aligned.
+const DEFAULT_TIMEZONE = 'Europe/Paris';
 
 const SYSTEM_VARIABLE_NAMES = {
   DEVICE_STATE_HISTORY_IN_DAYS: 'DEVICE_STATE_HISTORY_IN_DAYS',
@@ -480,16 +563,29 @@ const SYSTEM_VARIABLE_NAMES = {
   // ISO date of the moment Gladys Plus answered "payment required": while it is
   // set, the plan-gated features (backups, Enedis, AI) stay off locally
   GLADYS_GATEWAY_PAYMENT_REQUIRED_SINCE: 'GLADYS_GATEWAY_PAYMENT_REQUIRED_SINCE',
+  // health of the Gladys Plus backups, see lib/gateway/gateway.backupHealth.js:
+  // ISO date of the last backup uploaded, ISO date of the first failure of the
+  // current streak, text of its last error, ISO date of the last alert sent
+  GLADYS_GATEWAY_BACKUP_LAST_SUCCESS_AT: 'GLADYS_GATEWAY_BACKUP_LAST_SUCCESS_AT',
+  GLADYS_GATEWAY_BACKUP_FAILING_SINCE: 'GLADYS_GATEWAY_BACKUP_FAILING_SINCE',
+  GLADYS_GATEWAY_BACKUP_LAST_ERROR: 'GLADYS_GATEWAY_BACKUP_LAST_ERROR',
+  GLADYS_GATEWAY_BACKUP_ALERT_SENT_AT: 'GLADYS_GATEWAY_BACKUP_ALERT_SENT_AT',
   TIMEZONE: 'TIMEZONE',
+  TTS_ACTIVE_PROVIDER: 'TTS_ACTIVE_PROVIDER',
   DEVICE_BATTERY_LEVEL_WARNING_THRESHOLD: 'DEVICE_BATTERY_LEVEL_WARNING_THRESHOLD',
   DEVICE_BATTERY_LEVEL_WARNING_ENABLED: 'DEVICE_BATTERY_LEVEL_WARNING_ENABLED',
   AI_WEEKLY_DIGEST_ENABLED: 'AI_WEEKLY_DIGEST_ENABLED',
   AI_WEEKLY_DIGEST_DAY: 'AI_WEEKLY_DIGEST_DAY',
   AI_WEEKLY_DIGEST_HOUR: 'AI_WEEKLY_DIGEST_HOUR',
+  // channel of the system messages sent to the admins (upgrade, backup,
+  // batteries…): the `service` option of message.sendToUser — empty or absent
+  // means every channel, MESSAGE_GLADYS_ONLY_SERVICE no channel at all
+  SYSTEM_MESSAGE_SERVICE: 'SYSTEM_MESSAGE_SERVICE',
   DUCKDB_MIGRATED: 'DUCKDB_MIGRATED',
   DUCKDB_ORPHANED_STATES_PURGED: 'DUCKDB_ORPHANED_STATES_PURGED',
   GLADYS_VERSION: 'GLADYS_VERSION',
   MDNS_HOSTNAME: 'MDNS_HOSTNAME',
+  AI_PROVIDER: 'AI_PROVIDER',
 };
 
 const MDNS = {
@@ -673,6 +769,13 @@ const EVENTS = {
     ALERT_RAISED: 'weather.alert-raised',
     ALERT_ENDED: 'weather.alert-ended',
   },
+  ENERGY_CONTRACT: {
+    // asks the energy-monitoring service to recompute the costs of some meters
+    // from a date (contract or calendar change), see docs/specs/energy-contracts.md 7.4
+    RECALCULATE: 'energy-contract.recalculate',
+    // scene trigger: the current unit price of the active contract changed
+    PRICE_CHANGED: 'energy-contract.price-changed',
+  },
   EXTERNAL_INTEGRATION: {
     STATUS_CHANGED: 'external-integration.status-changed',
     DISCOVERED_DEVICES_UPDATED: 'external-integration.discovered-devices-updated',
@@ -744,6 +847,16 @@ const CONDITIONS = {
   },
 };
 
+// Sub-events of a "time-range" scheduled trigger. The trigger fires at the start and at the
+// end of each configured range; `resume` is the extra firing at Gladys startup, when the
+// scene asked to be re-evaluated (the scheduled jobs of a range which elapsed while Gladys
+// was down are lost, so the scene reconciles the real state with the planned one itself).
+const TIME_RANGE_EVENTS = {
+  START: 'start',
+  END: 'end',
+  RESUME: 'resume',
+};
+
 // Operators available on a "device.new-state" scene trigger. `changed` is specific to
 // triggers: it fires on any state change of the device feature, so no value is configured.
 const COMPARISON_OPERATORS = ['=', '!=', '>', '>=', '<', '<='];
@@ -796,6 +909,7 @@ const ACTIONS = {
     CHECK_TIME: 'condition.check-time',
     IF_THEN_ELSE: 'condition.if-then-else',
     WHILE: 'condition.while',
+    IN_TIME_RANGE: 'condition.in-time-range',
   },
   USER: {
     SET_SEEN_AT_HOME: 'user.set-seen-at-home',
@@ -815,6 +929,10 @@ const ACTIONS = {
   EDF_TEMPO: {
     CONDITION: 'edf-tempo.condition',
   },
+  ENERGY_CONTRACT: {
+    // condition: the current unit price of a contract compared with a threshold
+    CURRENT_PRICE: 'energy-contract.current-price',
+  },
   MQTT: {
     SEND: 'mqtt.send',
   },
@@ -823,9 +941,15 @@ const ACTIONS = {
   },
   MUSIC: {
     PLAY_NOTIFICATION: 'music.play-notification',
+    // start a MediaItem (id + type from the integration's catalog) on a player
+    PLAY_MEDIA: 'music.play-media',
   },
   SMS: {
     SEND: 'sms.send',
+  },
+  THERMOSTAT: {
+    // make thermostats follow another weekly schedule (school term, holidays...)
+    SET_SCHEDULE: 'thermostat.set-schedule',
   },
   EXTERNAL_INTEGRATION: {
     // scene action declared by an external integration (scene_actions of
@@ -848,8 +972,10 @@ const CONDITION_ACTIONS = [
   ACTIONS.CALENDAR.IS_EVENT_RUNNING,
   ACTIONS.CALENDAR.GET_EVENTS,
   ACTIONS.ECOWATT.CONDITION,
+  ACTIONS.ENERGY_CONTRACT.CURRENT_PRICE,
   ACTIONS.HOUSE.IS_EMPTY,
   ACTIONS.HOUSE.IS_NOT_EMPTY,
+  ACTIONS.CONDITION.IN_TIME_RANGE,
 ];
 
 const INTENTS = {
@@ -914,6 +1040,13 @@ const DEVICE_FEATURE_CATEGORIES = {
   ENERGY_SENSOR: 'energy-sensor',
   ENERGY_PRODUCTION_SENSOR: 'energy-production-sensor',
   FAN: 'fan',
+  // Volumetric flow rate of a fluid measured by a standalone sensor: a pipe flow meter, a pump, or
+  // a river hydrometry station (Hub'Eau, Vigicrues...). Mirrors the Matter Flow Sensor device type
+  // (Flow Measurement cluster 0x0404) and the Zigbee Flow Measurement cluster. `water-valve` / `flow`
+  // pre-dates it and holds the same quantity: a known legacy exception
+  // (docs/specs/device-feature-categories.md), kept for existing devices, never a precedent for a new
+  // mapping. The volume that went through (an index) is not a flow: it goes to `volume-sensor`.
+  FLOW_SENSOR: 'flow-sensor',
   // Carbon content of the electricity DELIVERED BY THE GRID of a zone, as published by a grid data
   // provider (national TSO, Electricity Maps, WattTime...) or broadcast in the premises by a device
   // implementing the Matter Electrical Grid Conditions cluster. It describes the electricity, not
@@ -1129,6 +1262,11 @@ const DEVICE_FEATURE_TYPES = {
     ROCK_SETTING: 'rock-setting',
     WIND_SETTING: 'wind-setting',
   },
+  // Value convention: a flow is >= 0, like the Matter MeasuredValue (unsigned). Matter and Zigbee
+  // report it in m³/h; river flows are published in m³/s.
+  FLOW_SENSOR: {
+    DECIMAL: 'decimal',
+  },
   HEATER: {
     PILOT_WIRE_MODE: 'pilot-wire-mode',
   },
@@ -1169,14 +1307,34 @@ const DEVICE_FEATURE_TYPES = {
     FORWARD: 'forward',
     RECORD: 'record',
   },
+  // A music player (capabilities/music.md). The whole category is live: no state history
+  // whatever the integration or the user asks (keep_history is forced off at creation).
   MUSIC: {
     VOLUME: 'volume',
     PLAY: 'play',
     PAUSE: 'pause',
     PREVIOUS: 'previous',
     NEXT: 'next',
+    // MUSIC_PLAYBACK_STATE; writable on players that accept play/pause/stop as one feature
     PLAYBACK_STATE: 'playback_state',
     PLAY_NOTIFICATION: 'play_notification',
+    // String states (last_value_string), ≤ 200 characters, empty when nothing is loaded
+    TITLE: 'title',
+    ARTIST: 'artist',
+    ALBUM: 'album',
+    // String state: an image KEY (^[a-z0-9][a-z0-9-]{0,63}$) served by the artwork proxy
+    // route of the player's integration — never a URL
+    ARTWORK: 'artwork',
+    // Seconds; 0 = unknown or live stream
+    DURATION: 'duration',
+    // Seconds, the position sampled at last_value_changed (the frontend extrapolates);
+    // writing seeks
+    POSITION: 'position',
+    SHUFFLE: 'shuffle',
+    // MUSIC_REPEAT_MODE
+    REPEAT: 'repeat',
+    // Independent from volume: a muted player keeps its level
+    MUTE: 'mute',
   },
   ENERGY_SENSOR: {
     BINARY: 'binary',
@@ -1369,8 +1527,10 @@ const DEVICE_FEATURE_TYPES = {
   },
   THERMOSTAT: {
     TARGET_TEMPERATURE: 'target-temperature',
-    MODE: 'mode',
+    MODE: 'mode', // what the machine does, THERMOSTAT_MODE (command)
     OPERATING_STATE: 'operating-state',
+    PRESET: 'preset', // which temperature to aim for, THERMOSTAT_PRESET (command)
+    ACTIVE_PRESET: 'active-preset', // the preset in force, THERMOSTAT_ACTIVE_PRESET (read only)
   },
   AIRQUALITY_SENSOR: {
     AQI: 'aqi',
@@ -1611,6 +1771,8 @@ const DEVICE_FEATURE_UNITS = {
   CUBIC_METER: 'cubicmeter',
   // Flow units
   CUBIC_METER_PER_HOUR: 'cubic-meter-per-hour',
+  // SI unit of volumetric flow (1 m³/s = 3600 m³/h), the unit of river flows
+  CUBIC_METER_PER_SECOND: 'cubic-meter-per-second',
   // Currency units
   EURO: 'euro',
   DOLLAR: 'dollar',
@@ -1752,6 +1914,10 @@ const DEVICE_FEATURE_UNITS_BY_CATEGORY = {
     DEVICE_FEATURE_UNITS.KILOWATT_HOUR,
     DEVICE_FEATURE_UNITS.EURO,
     DEVICE_FEATURE_UNITS.DOLLAR,
+  ],
+  [DEVICE_FEATURE_CATEGORIES.FLOW_SENSOR]: [
+    DEVICE_FEATURE_UNITS.CUBIC_METER_PER_HOUR,
+    DEVICE_FEATURE_UNITS.CUBIC_METER_PER_SECOND,
   ],
   [DEVICE_FEATURE_CATEGORIES.GRID_CARBON_SENSOR]: [
     DEVICE_FEATURE_UNITS.GRAM_CO2_EQ_PER_KILOWATT_HOUR,
@@ -1944,6 +2110,16 @@ const DEVICE_FEATURE_UNITS_BY_CATEGORY_AND_TYPE = {
     [DEVICE_FEATURE_TYPES.GRID_CARBON_SENSOR.CARBON_FREE_PERCENTAGE]: [DEVICE_FEATURE_UNITS.PERCENT],
     [DEVICE_FEATURE_TYPES.GRID_CARBON_SENSOR.RENEWABLE_PERCENTAGE]: [DEVICE_FEATURE_UNITS.PERCENT],
   },
+  [DEVICE_FEATURE_CATEGORIES.THERMOSTAT]: {
+    // The category is a temperature, but four of its types are enums: a preset,
+    // the preset in force, an operating mode and a running state carry no unit.
+    // Without this entry the MQTT setup and the feature editor would offer °C/°F
+    // on all four.
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.PRESET]: [],
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.MODE]: [],
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.OPERATING_STATE]: [],
+    [DEVICE_FEATURE_TYPES.THERMOSTAT.ACTIVE_PRESET]: [],
+  },
   [DEVICE_FEATURE_CATEGORIES.BATTERY]: {
     // The whole BATTERY category is a percent (the charge level), but a charging flag is a
     // binary and carries no unit: without this entry it would inherit the category percent.
@@ -1962,14 +2138,37 @@ const DEVICE_FEATURE_UNITS_BY_CATEGORY_AND_TYPE = {
   },
   [DEVICE_FEATURE_CATEGORIES.WATER_VALVE]: {
     [DEVICE_FEATURE_TYPES.WATER_VALVE.CURRENT_DEVICE_STATUS]: [],
-    [DEVICE_FEATURE_TYPES.WATER_VALVE.FLOW]: [DEVICE_FEATURE_UNITS.CUBIC_METER_PER_HOUR],
+    [DEVICE_FEATURE_TYPES.WATER_VALVE.FLOW]: [
+      DEVICE_FEATURE_UNITS.CUBIC_METER_PER_HOUR,
+      DEVICE_FEATURE_UNITS.CUBIC_METER_PER_SECOND,
+    ],
     [DEVICE_FEATURE_TYPES.WATER_VALVE.AUTO_CLOSE_WHEN_WATER_SHORTAGE]: [],
     [DEVICE_FEATURE_TYPES.WATER_VALVE.VALVE_WORK_STATE]: [],
     [DEVICE_FEATURE_TYPES.WATER_VALVE.REAL_TIME_IRRIGATION_DURATION]: [DEVICE_FEATURE_UNITS.SECONDS],
     [DEVICE_FEATURE_TYPES.WATER_VALVE.REAL_TIME_IRRIGATION_VOLUME]: [DEVICE_FEATURE_UNITS.LITER],
     [DEVICE_FEATURE_TYPES.WATER_VALVE.DAILY_IRRIGATION_VOLUME]: [DEVICE_FEATURE_UNITS.LITER],
   },
+  [DEVICE_FEATURE_CATEGORIES.MUSIC]: {
+    // the two time values of a player are seconds; the rest of the category carries no unit
+    // except the volume percent
+    [DEVICE_FEATURE_TYPES.MUSIC.DURATION]: [DEVICE_FEATURE_UNITS.SECONDS],
+    [DEVICE_FEATURE_TYPES.MUSIC.POSITION]: [DEVICE_FEATURE_UNITS.SECONDS],
+  },
 };
+
+// The music types whose state is a string (last_value_string): the core routes them to
+// saveStringState by category + type, whatever the shape of the event, exactly like
+// text/text (capabilities/music.md, section 1).
+const MUSIC_STRING_FEATURE_TYPES = [
+  DEVICE_FEATURE_TYPES.MUSIC.TITLE,
+  DEVICE_FEATURE_TYPES.MUSIC.ARTIST,
+  DEVICE_FEATURE_TYPES.MUSIC.ALBUM,
+  DEVICE_FEATURE_TYPES.MUSIC.ARTWORK,
+];
+// a title, an artist or an album is truncated at this length by the core
+const MAX_MUSIC_TEXT_LENGTH = 200;
+// an artwork state is an image key served by the player's integration, never a URL
+const MUSIC_ARTWORK_KEY_REGEX = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 const MEASUREMENT_UNITS = {
   US: 'us',
@@ -2009,6 +2208,9 @@ const WEBSOCKET_MESSAGE_TYPES = {
   BACKUP: {
     DOWNLOADED: 'backup.downloaded',
   },
+  CALENDAR: {
+    UPDATED: 'calendar.updated',
+  },
   DEVICE: {
     NEW_STATE: 'device.new-state',
     NEW_STRING_STATE: 'device.new-string-state',
@@ -2043,6 +2245,11 @@ const WEBSOCKET_MESSAGE_TYPES = {
     FINISHED_EXECUTING_ACTION: 'scene.finished-executing-action',
     STARTED: 'scene.started',
     STOPPED: 'scene.stopped',
+  },
+  THERMOSTAT: {
+    CONFIG_UPDATED: 'thermostat.config-updated',
+    PRESET_UPDATED: 'thermostat.preset-updated',
+    MANUAL_MODE_UPDATED: 'thermostat.manual-mode-updated',
   },
   SYSTEM: {
     VACUUM_FINISHED: 'system.vacuum-finished',
@@ -2145,14 +2352,17 @@ const WEBSOCKET_MESSAGE_TYPES = {
     OAUTH_GET_AUTHORIZE_URL: 'external-integration.oauth.get-authorize-url',
     OAUTH_CALLBACK: 'external-integration.oauth.callback',
     ACTION_RUN: 'external-integration.action.run',
+    AI_CHAT: 'external-integration.ai.chat',
     CAMERA_GET_IMAGE: 'external-integration.camera.get-image',
     WEATHER_GET: 'external-integration.weather.get',
     WEATHER_GET_IMAGE: 'external-integration.weather.get-image',
     WEATHER_REFRESH: 'external-integration.weather.refresh',
+    TTS_SYNTHESIZE: 'external-integration.tts.synthesize',
     DEVICE_TRANSPORT_UPDATED: 'external-integration.device-transport-updated',
     WEBHOOK_RECEIVED: 'external-integration.webhook.received',
     WEBHOOK_REQUEST: 'external-integration.webhook.request',
     WEBHOOK_UPDATED: 'external-integration.webhook-updated',
+    CALENDAR_ACCOUNT_UPDATED: 'external-integration.calendar.account-updated',
     SCENE_ACTION_RUN: 'external-integration.scene-action.run',
     // dashboard widgets declared by integrations (capabilities/dashboard-widgets.md)
     WIDGET_GET: 'external-integration.widget.get',
@@ -2160,6 +2370,17 @@ const WEBSOCKET_MESSAGE_TYPES = {
     WIDGET_ACTION: 'external-integration.widget.action',
     WIDGET_REFRESH: 'external-integration.widget.refresh',
     WIDGET_UPDATED: 'external-integration.widget-updated',
+    // energy contracts capability (capabilities/energy-contracts.md)
+    ENERGY_CONTRACT_PRICE: 'external-integration.energy-contract.price',
+    ENERGY_CONTRACT_CURRENT: 'external-integration.energy-contract.current',
+    ENERGY_CALENDAR_REFRESH: 'external-integration.energy-calendar.refresh',
+    // music players: on-demand catalog, queue and artwork (capabilities/music.md)
+    MUSIC_BROWSE: 'external-integration.music.browse',
+    MUSIC_SEARCH: 'external-integration.music.search',
+    MUSIC_PLAY: 'external-integration.music.play',
+    MUSIC_QUEUE_GET: 'external-integration.music.queue-get',
+    MUSIC_QUEUE_PLAY: 'external-integration.music.queue-play',
+    MUSIC_GET_ARTWORK: 'external-integration.music.get-artwork',
   },
 };
 
@@ -2189,6 +2410,8 @@ const DASHBOARD_BOX_TYPE = {
   MUSIC: 'music',
   GAUGE: 'gauge',
   ENERGY_CONSUMPTION: 'energy-consumption',
+  // current electricity price of a contract (docs/specs/energy-contracts.md 8.2)
+  ENERGY_PRICE: 'energy-price',
   VOICE_ASSISTANT: 'voice-assistant',
   LINK: 'link',
   PHOTO: 'photo',
@@ -2198,6 +2421,7 @@ const DASHBOARD_BOX_TYPE = {
   ACTIONS: 'actions',
   // one core box type serving every widget declared by an external integration
   EXTERNAL_WIDGET: 'external-widget',
+  THERMOSTAT: 'thermostat',
 };
 
 const DASHBOARD_WIDTH = {
@@ -2225,6 +2449,11 @@ const ERROR_MESSAGES = {
   INVALID_ACCESS_TOKEN: 'INVALID_ACCESS_TOKEN',
   NO_CONNECTED_TO_THE_INTERNET: 'NO_CONNECTED_TO_THE_INTERNET',
   GLADYS_PLUS_PAYMENT_REQUIRED: 'GLADYS_PLUS_PAYMENT_REQUIRED',
+  BACKUP_ALREADY_IN_PROGRESS: 'BACKUP_ALREADY_IN_PROGRESS',
+  // Gladys Plus recovery codes generated from this instance (settings > Gladys Plus)
+  GATEWAY_USER_NOT_FOUND: 'GATEWAY_USER_NOT_FOUND',
+  GATEWAY_TWO_FACTOR_NOT_ENABLED: 'GATEWAY_TWO_FACTOR_NOT_ENABLED',
+  WRONG_PASSWORD: 'WRONG_PASSWORD',
   // an integration widget answered with a content version this Gladys does
   // not render: the remedy is on the user's side (upgrade), not the integration's
   WIDGET_CONTENT_VERSION_UNSUPPORTED: 'WIDGET_CONTENT_VERSION_UNSUPPORTED',
@@ -2236,6 +2465,24 @@ const DEVICE_FEATURE_STATE_AGGREGATE_TYPES = {
   HOURLY: 'hourly',
 };
 
+// Columns of t_device_feature holding the current STATE of a feature, not its definition: they are
+// written by device.saveState / device.saveStringState and by the aggregation jobs, never by a device
+// save. device.create ignores them on a feature that already exists: a caller saving a device sends back
+// the features it read earlier (the MQTT device page posts the whole device just to append one feature),
+// and letting them through rolled every existing feature back to the value the client had in hand. They
+// are only accepted when the feature is created, so an integration can declare a first value along with
+// a brand new feature (lan-manager does it for presence). The frontend leaves them out of the device it
+// posts back (stripDeviceStatesForSave): a camera image alone (camera/image, up to 150 kB of base64)
+// would push the save past the 100 kB JSON bound of the API.
+const DEVICE_FEATURE_STATE_COLUMNS = [
+  'last_value',
+  'last_value_string',
+  'last_value_changed',
+  'last_hourly_aggregate',
+  'last_daily_aggregate',
+  'last_monthly_aggregate',
+];
+
 const DEFAULT_AGGREGATES_POLICY_IN_DAYS = {
   [DEVICE_FEATURE_STATE_AGGREGATE_TYPES.HOURLY]: 6 * 30,
   [DEVICE_FEATURE_STATE_AGGREGATE_TYPES.DAILY]: 365,
@@ -2245,6 +2492,12 @@ const DEFAULT_AGGREGATES_POLICY_IN_DAYS = {
 const SYSTEM_UPGRADE_ERROR_CODES = {
   // Gladys runs on an immutable image reference, no upgrade can ever be applied
   IMAGE_TAG_PINNED: 'IMAGE_TAG_PINNED',
+  // the new Gladys image could not be downloaded, Docker's error is attached
+  IMAGE_PULL_FAILED: 'IMAGE_PULL_FAILED',
+  // the download of the new Gladys image did not finish in time and was stopped
+  IMAGE_PULL_TIMEOUT: 'IMAGE_PULL_TIMEOUT',
+  // the new Gladys image could not be downloaded because the disk is full
+  NOT_ENOUGH_DISK_SPACE: 'NOT_ENOUGH_DISK_SPACE',
   // Watchtower ran fine but found no new image to install
   NO_UPDATE_APPLIED: 'NO_UPDATE_APPLIED',
   // the Watchtower container exited with a non-zero status code
@@ -2277,6 +2530,10 @@ const JOB_TYPES = {
   ENERGY_MONITORING_CONSUMPTION_FROM_INDEX_BEGINNING: 'energy-monitoring-consumption-from-index-beginning',
   ENERGY_MONITORING_PRODUCTION_FROM_INDEX_THIRTY_MINUTES: 'energy-monitoring-production-from-index-thirty-minutes',
   ENERGY_MONITORING_PRODUCTION_FROM_INDEX_BEGINNING: 'energy-monitoring-production-from-index-beginning',
+  ENERGY_MONITORING_COST_CALCULATION_CALENDAR: 'energy-monitoring-cost-calculation-calendar',
+  ENERGY_MONITORING_COST_CALCULATION_CONTRACT: 'energy-monitoring-cost-calculation-contract',
+  ENERGY_MONITORING_BILLING_PERIOD_END: 'energy-monitoring-billing-period-end',
+  ENERGY_MONITORING_DELEGATED_CATCH_UP: 'energy-monitoring-delegated-catch-up',
   SERVICE_ENEDIS_SYNC: 'service-enedis-sync',
   AI_WEEKLY_DIGEST: 'ai-weekly-digest',
   DEVICE_MIGRATE: 'device-migrate',
@@ -2328,6 +2585,48 @@ const ENERGY_PRICE_DAY_TYPES = {
   RED: 'red',
   BLUE: 'blue',
   WHITE: 'white',
+};
+
+// Energy contracts (docs/specs/energy-contracts.md, section 4)
+const ENERGY_CONTRACT_PROVIDER_KINDS = {
+  COMMUNITY: 'community',
+  INTEGRATION: 'integration',
+  INTERNAL: 'internal',
+  USER: 'user',
+};
+
+const ENERGY_CONTRACT_PRICING_MODES = {
+  RULES: 'rules',
+  DELEGATED: 'delegated',
+};
+
+const ENERGY_CONTRACT_STATUS = {
+  ACTIVE: 'active',
+  SCHEDULED: 'scheduled',
+  EXPIRED: 'expired',
+  ORPHANED: 'orphaned',
+};
+
+const ENERGY_CONTRACT_ENERGY_TYPES = {
+  ELECTRICITY: 'electricity',
+  GAS: 'gas',
+  WATER: 'water',
+};
+
+const ENERGY_CONTRACT_DIRECTIONS = {
+  CONSUMPTION: 'consumption',
+  PRODUCTION: 'production',
+};
+
+const ENERGY_CONTRACT_POWER_UNITS = {
+  KVA: 'kVA',
+  KW: 'kW',
+};
+
+const TARIFF_CALENDAR_GRANULARITIES = {
+  DAY: 'day',
+  THIRTY_MINUTES: 'thirty_minutes',
+  FIFTEEN_MINUTES: 'fifteen_minutes',
 };
 
 const AI_CHAT_TOOL_CATEGORIES = {
@@ -2391,6 +2690,12 @@ const AI_CHAT_TOOL_CATEGORIES_LIST = createList(AI_CHAT_TOOL_CATEGORIES);
 const ENERGY_CONTRACT_TYPES_LIST = createList(ENERGY_CONTRACT_TYPES);
 const ENERGY_PRICE_TYPES_LIST = createList(ENERGY_PRICE_TYPES);
 const ENERGY_PRICE_DAY_TYPES_LIST = createList(ENERGY_PRICE_DAY_TYPES);
+const ENERGY_CONTRACT_PROVIDER_KINDS_LIST = createList(ENERGY_CONTRACT_PROVIDER_KINDS);
+const ENERGY_CONTRACT_PRICING_MODES_LIST = createList(ENERGY_CONTRACT_PRICING_MODES);
+const ENERGY_CONTRACT_ENERGY_TYPES_LIST = createList(ENERGY_CONTRACT_ENERGY_TYPES);
+const ENERGY_CONTRACT_DIRECTIONS_LIST = createList(ENERGY_CONTRACT_DIRECTIONS);
+const ENERGY_CONTRACT_POWER_UNITS_LIST = createList(ENERGY_CONTRACT_POWER_UNITS);
+const TARIFF_CALENDAR_GRANULARITIES_LIST = createList(TARIFF_CALENDAR_GRANULARITIES);
 
 module.exports.STATE = STATE;
 module.exports.BUTTON_STATUS = BUTTON_STATUS;
@@ -2403,6 +2708,8 @@ module.exports.AC_MODE = AC_MODE;
 module.exports.CAMERA_MOVE = CAMERA_MOVE;
 module.exports.THERMOSTAT_MODE = THERMOSTAT_MODE;
 module.exports.THERMOSTAT_OPERATING_STATE = THERMOSTAT_OPERATING_STATE;
+module.exports.THERMOSTAT_PRESET = THERMOSTAT_PRESET;
+module.exports.THERMOSTAT_ACTIVE_PRESET = THERMOSTAT_ACTIVE_PRESET;
 module.exports.FAN_MODE = FAN_MODE;
 module.exports.FAN_AIRFLOW_DIRECTION = FAN_AIRFLOW_DIRECTION;
 module.exports.FAN_ROCK_SETTING = FAN_ROCK_SETTING;
@@ -2428,6 +2735,7 @@ module.exports.CONDITIONS = CONDITIONS;
 module.exports.COMPARISON_OPERATORS = COMPARISON_OPERATORS;
 module.exports.ANY_CHANGE_OPERATOR = ANY_CHANGE_OPERATOR;
 module.exports.TRIGGER_OPERATORS = TRIGGER_OPERATORS;
+module.exports.TIME_RANGE_EVENTS = TIME_RANGE_EVENTS;
 module.exports.ACTIONS = ACTIONS;
 module.exports.CONDITION_ACTIONS = CONDITION_ACTIONS;
 module.exports.INTENTS = INTENTS;
@@ -2468,10 +2776,12 @@ module.exports.SERVICE_STATUS_LIST = createList(SERVICE_STATUS);
 module.exports.SERVICE_TYPES = SERVICE_TYPES;
 module.exports.MESSAGE_GLADYS_ONLY_SERVICE = MESSAGE_GLADYS_ONLY_SERVICE;
 module.exports.SERVICE_TYPES_LIST = createList(SERVICE_TYPES);
+module.exports.CALENDAR_TYPES = CALENDAR_TYPES;
 
 module.exports.INTEGRATION_CATALOG_CATEGORIES = INTEGRATION_CATALOG_CATEGORIES;
 
 module.exports.SYSTEM_VARIABLE_NAMES = SYSTEM_VARIABLE_NAMES;
+module.exports.DEFAULT_TIMEZONE = DEFAULT_TIMEZONE;
 
 module.exports.MDNS = MDNS;
 module.exports.normalizeMdnsHostname = normalizeMdnsHostname;
@@ -2493,6 +2803,7 @@ module.exports.WEATHER_UNITS = WEATHER_UNITS;
 
 module.exports.DEVICE_FEATURE_STATE_AGGREGATE_TYPES = DEVICE_FEATURE_STATE_AGGREGATE_TYPES;
 module.exports.DEVICE_FEATURE_STATE_AGGREGATE_TYPES_LIST = DEVICE_FEATURE_STATE_AGGREGATE_TYPES_LIST;
+module.exports.DEVICE_FEATURE_STATE_COLUMNS = DEVICE_FEATURE_STATE_COLUMNS;
 module.exports.DEFAULT_AGGREGATES_POLICY_IN_DAYS = DEFAULT_AGGREGATES_POLICY_IN_DAYS;
 
 module.exports.SYSTEM_UPGRADE_ERROR_CODES = SYSTEM_UPGRADE_ERROR_CODES;
@@ -2516,6 +2827,12 @@ module.exports.AI_CHAT_PURPOSES = AI_CHAT_PURPOSES;
 module.exports.AI_GENERATED_SCENE_TAG = AI_GENERATED_SCENE_TAG;
 
 module.exports.MUSIC_PLAYBACK_STATE = MUSIC_PLAYBACK_STATE;
+module.exports.MUSIC_REPEAT_MODE = MUSIC_REPEAT_MODE;
+module.exports.MUSIC_MEDIA_TYPES = MUSIC_MEDIA_TYPES;
+module.exports.MUSIC_PLAY_MODES = MUSIC_PLAY_MODES;
+module.exports.MUSIC_STRING_FEATURE_TYPES = MUSIC_STRING_FEATURE_TYPES;
+module.exports.MAX_MUSIC_TEXT_LENGTH = MAX_MUSIC_TEXT_LENGTH;
+module.exports.MUSIC_ARTWORK_KEY_REGEX = MUSIC_ARTWORK_KEY_REGEX;
 module.exports.OPENING_SENSOR_STATE = OPENING_SENSOR_STATE;
 
 module.exports.ENERGY_CONTRACT_TYPES = ENERGY_CONTRACT_TYPES;
@@ -2524,5 +2841,18 @@ module.exports.ENERGY_PRICE_TYPES = ENERGY_PRICE_TYPES;
 module.exports.ENERGY_PRICE_TYPES_LIST = ENERGY_PRICE_TYPES_LIST;
 module.exports.ENERGY_PRICE_DAY_TYPES = ENERGY_PRICE_DAY_TYPES;
 module.exports.ENERGY_PRICE_DAY_TYPES_LIST = ENERGY_PRICE_DAY_TYPES_LIST;
+module.exports.ENERGY_CONTRACT_PROVIDER_KINDS = ENERGY_CONTRACT_PROVIDER_KINDS;
+module.exports.ENERGY_CONTRACT_PROVIDER_KINDS_LIST = ENERGY_CONTRACT_PROVIDER_KINDS_LIST;
+module.exports.ENERGY_CONTRACT_PRICING_MODES = ENERGY_CONTRACT_PRICING_MODES;
+module.exports.ENERGY_CONTRACT_PRICING_MODES_LIST = ENERGY_CONTRACT_PRICING_MODES_LIST;
+module.exports.ENERGY_CONTRACT_STATUS = ENERGY_CONTRACT_STATUS;
+module.exports.ENERGY_CONTRACT_ENERGY_TYPES = ENERGY_CONTRACT_ENERGY_TYPES;
+module.exports.ENERGY_CONTRACT_ENERGY_TYPES_LIST = ENERGY_CONTRACT_ENERGY_TYPES_LIST;
+module.exports.ENERGY_CONTRACT_DIRECTIONS = ENERGY_CONTRACT_DIRECTIONS;
+module.exports.ENERGY_CONTRACT_DIRECTIONS_LIST = ENERGY_CONTRACT_DIRECTIONS_LIST;
+module.exports.ENERGY_CONTRACT_POWER_UNITS = ENERGY_CONTRACT_POWER_UNITS;
+module.exports.ENERGY_CONTRACT_POWER_UNITS_LIST = ENERGY_CONTRACT_POWER_UNITS_LIST;
+module.exports.TARIFF_CALENDAR_GRANULARITIES = TARIFF_CALENDAR_GRANULARITIES;
+module.exports.TARIFF_CALENDAR_GRANULARITIES_LIST = TARIFF_CALENDAR_GRANULARITIES_LIST;
 
 module.exports.LEVEL_MATTER_STATE = LEVEL_MATTER_STATE;

@@ -2,6 +2,7 @@ const cloneDeep = require('lodash.clonedeep');
 const { promisify } = require('util');
 
 const logger = require('../../../utils/logger');
+const { findManagedContainer } = require('../../../utils/dockerContainers');
 const { ADAPTER_MODE } = require('./constants');
 
 const containerDescriptor = require('../docker/gladys-z2m-zigbee2mqtt-container.json');
@@ -11,6 +12,10 @@ const sleep = promisify(setTimeout);
 // Fallback when the user has not set a timezone yet: this is the timezone the container would
 // have used anyway, so it never makes the clock of a device worse than it already is.
 const DEFAULT_TIMEZONE = 'UTC';
+
+// Zigbee2mqtt fails to start within a couple of minutes: an older run is a running Zigbee2mqtt, whose logs do not
+// explain a startup failure
+const RECENT_RUN_IN_SECONDS = 5 * 60;
 
 /**
  * @description Build the Zigbee2mqtt container descriptor to create.
@@ -51,17 +56,24 @@ async function installZ2mContainer(config, setupMode = false) {
   const expectedDevicePath = networkAdapter ? null : z2mDriverPath;
   let creationNeeded = false;
 
-  let dockerContainers = await this.gladys.system.getContainers({
-    all: true,
-    filters: { name: [containerDescriptor.name] },
-  });
-  let [container] = dockerContainers;
+  let container;
+  try {
+    // Throws if the name is taken by a container that is not ours: it is never adopted nor removed
+    container = await findManagedContainer(this.gladys.system, containerDescriptor);
+  } catch (e) {
+    this.zigbee2mqttExist = false;
+    // Shown as is by the setup page, so the user reads which container to rename
+    this.z2mContainerError = { code: null, message: e.message };
+    logger.error('Zigbee2mqtt: failed to look up its Docker container:', e);
+    this.emitStatusEvent();
+    throw e;
+  }
 
   /*
    * Manage case where Zigbee coordinator has changed (USB dongle path, or switch from/to a network
    * coordinator) by removing the container. It will be created with good config later
    */
-  if (dockerContainers.length > 0) {
+  if (container) {
     const containerDescription = await this.gladys.system.inspectContainer(container.id);
     const [currentDevice] = containerDescription.HostConfig.Devices || [];
     const currentDevicePath = currentDevice ? currentDevice.PathOnHost : null;
@@ -99,7 +111,7 @@ async function installZ2mContainer(config, setupMode = false) {
 
   const { basePathOnContainer, basePathOnHost } = await this.gladys.system.getGladysBasePath();
   const containerPath = `${basePathOnHost}/zigbee2mqtt/z2m`;
-  if (dockerContainers.length === 0 || creationNeeded) {
+  if (!container || creationNeeded) {
     // Restore backup only in case of new installation
     await this.restoreZ2mBackup(containerPath);
 
@@ -133,14 +145,10 @@ async function installZ2mContainer(config, setupMode = false) {
   const { configChanged, adapterChanged } = await this.configureContainer(basePathOnContainer, config, setupMode);
 
   try {
-    dockerContainers = await this.gladys.system.getContainers({
-      all: true,
-      filters: { name: [containerDescriptor.name] },
-    });
-    [container] = dockerContainers;
+    container = await findManagedContainer(this.gladys.system, containerDescriptor);
 
     // If adapter type changed, remove and recreate container for clean state and fresh logs
-    if (adapterChanged && !creationNeeded && dockerContainers.length > 0) {
+    if (adapterChanged && !creationNeeded && container) {
       logger.info('Zigbee2mqtt adapter type changed, recreating container...');
       await this.gladys.system.stopContainer(container.id);
       await this.gladys.system.removeContainer(container.id);
@@ -153,29 +161,49 @@ async function installZ2mContainer(config, setupMode = false) {
       );
       await this.gladys.system.createContainer(containerDescriptorToMutate);
 
-      dockerContainers = await this.gladys.system.getContainers({
-        all: true,
-        filters: { name: [containerDescriptor.name] },
-      });
-      [container] = dockerContainers;
+      container = await findManagedContainer(this.gladys.system, containerDescriptor);
     }
 
     // Check if we need to restart the container (container is not running / config changed)
     if (container.state !== 'running' || configChanged) {
       logger.info('Zigbee2mqtt container is (re)starting...');
+      // Until Zigbee2mqtt answers, the UI tells that it is starting, for a bounded time: a Zigbee2mqtt that
+      // crashes before connecting to the broker never says anything
+      this.zigbee2mqttStarting = true;
+      clearTimeout(this.startingTimer);
+      this.startingTimer = setTimeout(() => {
+        this.startingTimer = null;
+        this.zigbee2mqttStarting = false;
+        this.emitStatusEvent();
+      }, this.zigbee2mqttStartingTimeoutInMs);
+      // Only the logs of the new run explain why it fails. Docker counts in seconds: taken before the restart, not
+      // to miss the first lines of the new run
+      const restartedAt = Math.floor(Date.now() / 1000);
       await this.gladys.system.restartContainer(container.id);
       // wait a few seconds for the container to restart
       await sleep(this.containerRestartWaitTimeInMs);
       // We read the logs in non blocking mode
-      this.readZ2mContainerLogs(container.id);
+      this.readZ2mContainerLogs(container.id, restartedAt);
+    } else {
+      // Left running: it may still crash in a loop, seen between two restarts (Docker restarts it at once when it
+      // ran for 10 s or more). Its current run tells why, when it is recent.
+      const { State } = await this.gladys.system.inspectContainer(container.id);
+      const startedAt = Math.floor(new Date(State.StartedAt).getTime() / 1000);
+      if (Date.now() / 1000 - startedAt < RECENT_RUN_IN_SECONDS) {
+        this.readZ2mContainerLogs(container.id, startedAt);
+      }
     }
 
     logger.info('Zigbee2mqtt container successfully started');
-    this.zigbee2mqttRunning = true;
+    // Running is proven by Zigbee2mqtt itself, when it answers the health check: a started container can
+    // still crash in a loop, for example when the adapter driver refuses the firmware of the dongle.
     this.zigbee2mqttExist = true;
   } catch (e) {
     logger.error('Zigbee2mqtt container failed to start:', e);
     this.zigbee2mqttRunning = false;
+    clearTimeout(this.startingTimer);
+    this.startingTimer = null;
+    this.zigbee2mqttStarting = false;
     throw e;
   } finally {
     this.emitStatusEvent();
