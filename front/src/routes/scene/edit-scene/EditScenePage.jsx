@@ -196,6 +196,8 @@ const EditScenePage = ({ children, ...props }) => {
                       comment={(props.scene.actionsComments || [])[index] || ''}
                       updateComment={comment => props.updateActionGroupComment(index, comment)}
                       sceneIntegrations={props.sceneIntegrations}
+                      deviceFeatures={props.deviceFeatures}
+                      thermostatSchedules={props.thermostatSchedules}
                     />
                   </div>
 
