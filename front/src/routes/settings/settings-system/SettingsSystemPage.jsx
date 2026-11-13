@@ -13,6 +13,7 @@ import SettingsSystemDuckDbMigration from './SettingsSystemDuckDbMigration';
 import SettingsSystemLocalBackup from './SettingsSystemLocalBackup';
 import SettingsSystemDownloadLogs from './SettingsSystemDownloadLogs';
 import SettingsSystemHostPower from './SettingsSystemHostPower';
+import SettingsSystemClock from './SettingsSystemClock';
 
 const SystemPage = ({ children, ...props }) => (
   <SettingsLayout>
@@ -160,6 +161,7 @@ const SystemPage = ({ children, ...props }) => (
       <div class="col-lg-6">
         <SettingsSystemLocalBackup />
         <SettingsSystemTimezone />
+        <SettingsSystemClock />
         <SettingsSystemMdns systemInfos={props.systemInfos} />
         <SettingsSystemBatteryLevelWarning />
         <SettingsSystemMessageService />

@@ -49,7 +49,8 @@ const { shutdown } = require('./system.shutdown');
 const { rebootHost } = require('./system.rebootHost');
 const { shutdownHost } = require('./system.shutdownHost');
 const { detectHostPowerManagement, redetectHostPowerManagement } = require('./system.detectHostPowerManagement');
-const { runHostPowerDbusCommand } = require('./system.runHostPowerDbusCommand');
+const { runHostDbusCommand, runHostPowerDbusCommand } = require('./system.runHostPowerDbusCommand');
+const { getTimeSyncStatus, enableTimeSync } = require('./system.timeSync');
 
 const System = function System(sequelize, event, config, job, variable, user, message, brain) {
   this.downloadUpgradeError = null;
@@ -91,6 +92,13 @@ const System = function System(sequelize, event, config, job, variable, user, me
   this.hostPowerLastDetectionAt = null;
   this.hostPowerUnreachable = false;
   this.hostPowerRedetectionAttempts = 0;
+  // Network time synchronization of the host, as reported by
+  // systemd-timedated: the mechanism that reached it last, the cached
+  // status, when it was read, and the read in flight (see system.timeSync.js).
+  this.timeSyncMechanism = null;
+  this.timeSyncStatus = null;
+  this.timeSyncStatusReadAt = null;
+  this.timeSyncStatusInFlight = null;
 };
 
 System.prototype.init = init;
@@ -140,6 +148,9 @@ System.prototype.rebootHost = rebootHost;
 System.prototype.shutdownHost = shutdownHost;
 System.prototype.detectHostPowerManagement = detectHostPowerManagement;
 System.prototype.redetectHostPowerManagement = redetectHostPowerManagement;
+System.prototype.runHostDbusCommand = runHostDbusCommand;
 System.prototype.runHostPowerDbusCommand = runHostPowerDbusCommand;
+System.prototype.getTimeSyncStatus = getTimeSyncStatus;
+System.prototype.enableTimeSync = enableTimeSync;
 
 module.exports = System;
