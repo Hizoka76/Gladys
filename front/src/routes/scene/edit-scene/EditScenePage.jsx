@@ -1,7 +1,7 @@
 import update from 'immutability-helper';
 import cx from 'classnames';
 import { Fragment } from 'preact';
-import { useState } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 
 import ActionGroup from './ActionGroup';
 import SceneCanvas from './canvas/SceneCanvas';
@@ -9,6 +9,7 @@ import TriggerGroup from './TriggerGroup';
 import style from './style.css';
 import Settings from './Settings';
 import EditActions from './EditActions';
+import DraftBanner from './DraftBanner';
 import dashboardStyle from '../../dashboard/style.css';
 import { Localizer, Text } from 'preact-i18n';
 
@@ -17,6 +18,14 @@ const EditScenePage = ({ children, ...props }) => {
   // and open on demand from the header, to keep the scene visible right away
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
+  // a failed save brings its alert into view: the Save button is at the bottom of the page
+  // (docs/specs/scene-editor-mobile.md, C.3)
+  const errorRef = useRef(null);
+  useEffect(() => {
+    if (props.errorNonce && errorRef.current && errorRef.current.scrollIntoView) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [props.errorNonce]);
   const closeSettings = () => setSettingsOpen(false);
 
   // Inserting a step between two existing steps = inserting a new action group,
@@ -51,6 +60,7 @@ const EditScenePage = ({ children, ...props }) => {
                     <Localizer>
                       <button
                         onClick={props.goBack}
+                        data-not-an-edit
                         class={cx('btn btn-secondary btn-sm', style.backButton)}
                         aria-label={<Text id="editScene.backButton" />}
                       >
@@ -115,6 +125,7 @@ const EditScenePage = ({ children, ...props }) => {
                     <Localizer>
                       <button
                         onClick={settingsOpen ? closeSettings : openSettings}
+                        data-not-an-edit
                         data-cy="edit-scene-settings-button"
                         aria-label={<Text id="editScene.settings" />}
                         className={cx('btn mb-0', style.headerActionBtn, {
@@ -137,8 +148,9 @@ const EditScenePage = ({ children, ...props }) => {
                 vue elle-même : il fait partie de la chaîne flex, sans quoi la
                 ligne du canvas ne pourrait pas grandir. */}
             <div class={cx({ [style.canvasModeSection]: props.canvasView })}>
+              <DraftBanner draft={props.draftToRestore} onRestore={props.restoreDraft} onDiscard={props.discardDraft} />
               {props.error && (
-                <div class="alert alert-danger">
+                <div class="alert alert-danger" ref={errorRef}>
                   <Text id="editScene.saveSceneError" />
                   {props.errorMessage && (
                     <div class="mt-2">
@@ -179,6 +191,10 @@ const EditScenePage = ({ children, ...props }) => {
                       variables={props.variables}
                       triggersVariables={props.triggersVariables}
                       setVariables={props.setVariables}
+                      deviceFeatures={props.deviceFeatures}
+                      thermostatSchedules={props.thermostatSchedules}
+                      names={props.names}
+                      sceneIntegrations={props.sceneIntegrations}
                       setVariablesTrigger={props.setVariablesTrigger}
                       registerApply={props.registerCanvasApply}
                       onDirtyChange={props.setCanvasDirty}
@@ -213,6 +229,7 @@ const EditScenePage = ({ children, ...props }) => {
                       sceneIntegrations={props.sceneIntegrations}
                       deviceFeatures={props.deviceFeatures}
                       thermostatSchedules={props.thermostatSchedules}
+                      names={props.names}
                     />
                   </div>
                   <div class="row">
@@ -263,6 +280,9 @@ const EditScenePage = ({ children, ...props }) => {
                           triggersVariables={props.triggersVariables}
                           setVariables={props.setVariables}
                           sceneIntegrations={props.sceneIntegrations}
+                          deviceFeatures={props.deviceFeatures}
+                          thermostatSchedules={props.thermostatSchedules}
+                          names={props.names}
                         />
                       </div>
 

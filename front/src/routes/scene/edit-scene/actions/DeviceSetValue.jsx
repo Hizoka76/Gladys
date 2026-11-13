@@ -420,6 +420,7 @@ class DeviceSetValue extends Component {
             exclude_read_only_device_features
             value={action.device_feature}
             onDeviceFeatureChange={this.onDeviceFeatureChange}
+            mobilePicker
           />
         </div>
         {!this.isTextFeature() && (
