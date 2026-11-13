@@ -1336,7 +1336,7 @@ class EditScene extends Component {
   saveAndLeave = async () => {
     const request = {};
     this.pendingLeave = request;
-    const saved = await this.saveScene();
+    const saved = await this.saveSceneOrGraph();
     if (this.pendingLeave !== request) {
       return;
     }
@@ -1950,8 +1950,8 @@ class EditScene extends Component {
   // ---------------------------------------------------------------------------------------------
 
   hasUnsavedChanges = () => {
-    const { scene, savedSceneSnapshot } = this.state;
-    return Boolean(scene && savedSceneSnapshot && JSON.stringify(scene) !== savedSceneSnapshot);
+    const { scene, savedSceneSnapshot, canvasDirty } = this.state;
+    return Boolean(scene && savedSceneSnapshot && JSON.stringify(scene) !== savedSceneSnapshot) || canvasDirty;
   };
 
   // A draft is only offered once the forms are mounted and normalized: comparing it with the

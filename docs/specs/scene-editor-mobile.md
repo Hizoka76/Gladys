@@ -576,3 +576,7 @@ From 768 px the forms are untouched.
   synthesizes do not reach the row's handlers in its browser. It is checked in a phone emulation
   with a real pointer (Playwright); every swipe action has a non-gesture equivalent that the specs
   above cover.
+
+### Custom canvas compatibility
+
+The desktop canvas exposes the same device features and device-trigger variables as the list editor. Its unapplied graph changes count as unsaved changes. The leave confirmation saves the graph through the canvas before leaving, so a graph edit is not lost by saving the list representation instead.
