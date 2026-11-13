@@ -193,6 +193,10 @@ const NodeConfigPanel = ({
   scene,
   variables,
   triggersVariables,
+  deviceFeatures,
+  thermostatSchedules,
+  sceneIntegrations,
+  names,
   setVariables,
   setVariablesTrigger,
   onDelete,
@@ -334,6 +338,10 @@ const NodeConfigPanel = ({
         setVariables={handleSetVariables}
         actionsGroupsBefore={[]}
         triggersVariables={triggersVariables || []}
+        deviceFeatures={deviceFeatures}
+        thermostatSchedules={thermostatSchedules}
+        sceneIntegrations={sceneIntegrations}
+        names={names}
         deleteAction={() => {}}
         deleteActionGroup={() => {}}
         addAction={() => {}}

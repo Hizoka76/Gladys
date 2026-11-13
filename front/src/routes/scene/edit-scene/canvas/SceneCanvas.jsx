@@ -101,6 +101,10 @@ const SceneCanvas = ({
   saveScene,
   variables,
   triggersVariables,
+  deviceFeatures,
+  thermostatSchedules,
+  sceneIntegrations,
+  names,
   setVariables,
   setVariablesTrigger,
   registerApply,
@@ -818,6 +822,10 @@ const SceneCanvas = ({
           scene={scene}
           variables={variables}
           triggersVariables={triggersVariables}
+          deviceFeatures={deviceFeatures}
+          thermostatSchedules={thermostatSchedules}
+          sceneIntegrations={sceneIntegrations}
+          names={names}
           setVariables={setVariables}
           setVariablesTrigger={setVariablesTrigger}
           onDelete={() => onDeleteNode(selectedNode.id)}

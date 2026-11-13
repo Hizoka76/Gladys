@@ -56,6 +56,10 @@ const CanvasConditionIfThenElse = ({
   updateActionProperty,
   variables,
   triggersVariables,
+  deviceFeatures,
+  thermostatSchedules,
+  sceneIntegrations,
+  names,
   actionsGroupsBefore,
   allActions
 }) => {
@@ -216,6 +220,10 @@ const CanvasConditionIfThenElse = ({
                     triggersVariables={triggersVariables || []}
                     actionsGroupsBefore={actionsGroupsBefore || []}
                     allActions={allActions || []}
+                    deviceFeatures={deviceFeatures}
+                    thermostatSchedules={thermostatSchedules}
+                    sceneIntegrations={sceneIntegrations}
+                    names={names}
                     setVariables={() => {}}
                     deleteAction={() => {}}
                     deleteActionGroup={() => {}}

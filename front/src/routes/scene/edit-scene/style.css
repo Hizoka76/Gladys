@@ -314,9 +314,8 @@
   padding: 0 0.5rem;
 }
 
-/* La palette du canvas confie le défilement à son panneau, qui occupe déjà la
-   hauteur disponible : le plafond ci-dessus l'empêcherait de s'en servir. */
-.typePickerListFull {
+.typePickerListFull,
+.typePickerListFill {
   max-height: none;
   overflow-y: visible;
 }
@@ -876,4 +875,10 @@
   background: #fff;
   color: #0f172a;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* likewise, while a condition drag is live, the "AND" written between two
+   condition boxes fades out: the indicator line is drawn in the gap it sits in */
+:global(body.gladys-scene-condition-dragging) .conditionAndSeparator {
+  opacity: 0.15;
 }

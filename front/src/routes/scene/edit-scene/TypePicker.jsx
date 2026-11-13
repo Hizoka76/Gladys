@@ -38,7 +38,15 @@ class TypePicker extends Component {
   };
 
   getVisibleCategories = () => {
-    const { categories, filter, labelPrefix, descriptionPrefix, deprecated, intl } = this.props;
+    const {
+      categories,
+      filter,
+      labelPrefix,
+      descriptionPrefix,
+      fallbackDescriptionPrefix,
+      deprecated,
+      intl
+    } = this.props;
     const { query } = this.state;
     const normalizedQuery = normalizeSearchText(query.trim());
 
@@ -54,7 +62,12 @@ class TypePicker extends Component {
               return { ...item, type: item.value, deprecated: false };
             }
             const label = get(intl.dictionary, `${labelPrefix}.${item}`, { default: item });
-            const description = get(intl.dictionary, `${descriptionPrefix}.${item}`, { default: '' });
+            // a picker may have its own descriptions (the conditions of an if/while block),
+            // the generic ones being the fallback of a type it has no specific text for
+            const fallbackDescription = fallbackDescriptionPrefix
+              ? get(intl.dictionary, `${fallbackDescriptionPrefix}.${item}`, { default: '' })
+              : '';
+            const description = get(intl.dictionary, `${descriptionPrefix}.${item}`, { default: fallbackDescription });
             return {
               type: item,
               value: item,
@@ -82,7 +95,34 @@ class TypePicker extends Component {
     };
   }
 
-  render({ categoryPrefix, icons, searchPlaceholderId, fullHeight }, { query }) {
+  setSearchRef = element => {
+    this.searchInput = element;
+  };
+
+  focusSearchIfAsked = () => {
+    // in a sheet the picker is the whole screen: the search field takes the focus at once
+    if (this.props.autoFocusSearch && this.searchInput && !this.focused) {
+      this.focused = true;
+      try {
+        this.searchInput.focus({ preventScroll: true });
+      } catch (e) {
+        this.searchInput.focus();
+      }
+    }
+  };
+
+  componentDidMount() {
+    this.focusSearchIfAsked();
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.autoFocusSearch !== this.props.autoFocusSearch) {
+      this.focused = false;
+      this.focusSearchIfAsked();
+    }
+  }
+
+  render({ categoryPrefix, icons, searchPlaceholderId, fill, fullHeight }, { query }) {
     const visibleCategories = this.getVisibleCategories();
 
     return (
@@ -94,6 +134,7 @@ class TypePicker extends Component {
           <Localizer>
             <input
               type="text"
+              ref={this.setSearchRef}
               class="form-control"
               data-cy="type-picker-search"
               placeholder={<Text id={searchPlaceholderId} />}
@@ -102,10 +143,12 @@ class TypePicker extends Component {
             />
           </Localizer>
         </div>
-        <div class={cx(style.typePickerList, { [style.typePickerListFull]: fullHeight })}>
+        <div
+          class={cx(style.typePickerList, { [style.typePickerListFill]: fill, [style.typePickerListFull]: fullHeight })}
+        >
           {visibleCategories.map(category => (
             <div class={style.typePickerCategory} key={category.key}>
-              <div class={style.typePickerCategoryTitle}>
+              <div class={style.typePickerCategoryTitle} data-type-picker-category-title>
                 <Text id={`${categoryPrefix}.${category.key}`} />
               </div>
               <div class={style.typePickerOptions}>
